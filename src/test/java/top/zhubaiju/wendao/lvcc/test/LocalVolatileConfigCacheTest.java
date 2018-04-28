@@ -5,8 +5,8 @@ import java.util.concurrent.locks.LockSupport;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import top.zhubaiju.lvcc.LocalVolatileConfig;
-import top.zhubaiju.lvcc.LocalVolatileConfigCache;
+import top.zhubaiju.lvc.Cache;
+import top.zhubaiju.lvc.LocalVolatileCache;
 
 /**
  * @author kaltonguo create at 2018/4/16 0:56
@@ -15,45 +15,37 @@ import top.zhubaiju.lvcc.LocalVolatileConfigCache;
 
 public class LocalVolatileConfigCacheTest {
 
-  private static LocalVolatileConfigCache cache;
+  private static LocalVolatileCache cache;
 
   @BeforeClass
   public static void initLocalConfigCache() {
-    cache = new LocalVolatileConfigCache();
-    cache.setZkURL("192.168.1.2:2181");
+    cache = new LocalVolatileCache();
+    cache.setZkURL("127.0.0.1:2181");
     cache.setCluster(true);
     cache.init();
+    cache.setCachePro(new KeywordCacheHandler());
   }
 
-  @Test
-  public void registerConfigTest() {
-    LocalVolatileConfig<String> config = LocalVolatileConfig.getInstant("2", "Test", "HI");
-    cache.registerConfig(config);
-    LocalVolatileConfig<String> cachedConfig = cache.getLocalConfig("2");
-    System.out.println(JSON.toJSONString(cachedConfig));
-    Assert.assertNotNull(cachedConfig);
-
-    //等待30分钟
-    LockSupport.parkUntil(System.currentTimeMillis()+1000*60*30);
-  }
 
   @Test
   public void refreshConfigTest() {
-    LocalVolatileConfig<String> config = LocalVolatileConfig.getInstant("1", "Test", "HI-AA");
-    cache.refreshConfig(config);
+    Cache<String> config = Cache.getInstant("1", "Test", "HI-AA");
+    cache.refresh(config);
   }
 
 
   @Test
   public void removeConfigTest(){
-    LocalVolatileConfig<String> config = LocalVolatileConfig.getInstant("1", "Test", "HI-AA");
-    cache.removeConfig(config);
+    Cache<String> config = Cache.getInstant("1", "Test", "HI-AA");
+    cache.remove(config);
   }
 
   @Test
   public void getConfigTest(){
-    LocalVolatileConfig<String> config = cache.getLocalConfig("2");
+    Cache<String> config = cache.get("2");
     System.out.println(JSON.toJSONString(config));
+
+    LockSupport.parkUntil(System.currentTimeMillis()+1000*60*10);
     Assert.assertNotNull(config);
 
   }
