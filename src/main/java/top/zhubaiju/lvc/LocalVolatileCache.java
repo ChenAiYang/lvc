@@ -3,9 +3,12 @@ package top.zhubaiju.lvc;
 import static java.util.Objects.*;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -79,7 +82,7 @@ public final class LocalVolatileCache implements Watcher {
             appKey.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
             CreateMode.PERSISTENT,
             new CreateNodeCallBack(), "Create Node Success");
-        zk.exists(this.generateCacheMetaNodePath(),this);
+        zk.getChildren(this.generateCacheMetaNodePath(),this);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
       } catch (InterruptedException e) {
@@ -166,6 +169,23 @@ public final class LocalVolatileCache implements Watcher {
       }
     }
     return config;
+  }
+  /**
+   * show cache health info
+   *
+   */
+  public String healthInfo() {
+    JSONObject desc = new JSONObject();
+    desc.put("isCluster",this.isCluster);
+    if( isCluster ){
+      desc.put("zkState",zk.getState());
+    }
+    desc.put("totalSize(Byte)",JSON.toJSONString(cache.values()).getBytes().length);
+    Set<Entry<String,Cache>> entrySet = cache.entrySet();
+    entrySet.forEach(el->{
+      desc.put(el.getKey()+"-"+el.getValue().getCacheMeta().getCacheName(),JSON.toJSONString(el.getValue()).getBytes().length);
+    });
+    return desc.toJSONString();
   }
 
   /**
@@ -360,9 +380,8 @@ public final class LocalVolatileCache implements Watcher {
   @Override
   public void process(WatchedEvent watchedEvent) {
     KeeperState keeperState =  watchedEvent.getState();
-    //在根节点注册监听
     try {
-      zk.exists(this.generateCacheMetaNodePath(),this);
+      zk.getChildren(this.generateCacheMetaNodePath(),this);
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache】 [process] happend KeeperException :",e);
     } catch (InterruptedException e) {
@@ -370,11 +389,10 @@ public final class LocalVolatileCache implements Watcher {
     }
     EventType eventType = watchedEvent.getType();
     String path = watchedEvent.getPath();
-    System.out.println("监听到变化："+path+"---"+eventType);
     LOG.info("Listen path:【{}】 have changed, change type is {},state is {}",watchedEvent.getPath(),
         watchedEvent.getType(),keeperState);
     Cache.CacheMeta meta = null;
-    if( Objects.nonNull(path) && !Objects.equals("",path) ){
+    if( Objects.nonNull(path) && !Objects.equals("",path) && path.startsWith(this.generateCacheMetaNodePath()+"/")){
       String newInfo = "";
       try {
         newInfo = new String(this.zk.getData(path, this, null), "UTF-8");

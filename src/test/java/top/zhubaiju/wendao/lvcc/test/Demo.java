@@ -49,9 +49,8 @@ public class Demo {
     public void run() {
 
       while (true) {
-        Cache cache = localVolatileCache.get("2");
-        String info = JSON.toJSONString(cache);
-        System.out.println(LocalDateTime.now().format(formatter) + info);
+
+        System.out.println(localVolatileCache.healthInfo());
         LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 30);
       }
 
