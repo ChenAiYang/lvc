@@ -7,11 +7,15 @@ public class KeywordCacheHandler implements LocalVolatileCacheProcessor {
 
   @Override
   public Cache processExpired(String expiredCacheID) {
-    return Cache.getInstant(expiredCacheID,"keyword","hello -version ");
+    Cache newCache = Cache.getInstant(expiredCacheID,"keyword",System.currentTimeMillis()+":version","hello");
+
+    return newCache;
   }
 
   @Override
   public Cache processNotExist(String notExistCacheID) {
-    return Cache.getInstant(notExistCacheID,"keyword","hello");
+    Cache newCache = Cache.getInstant(notExistCacheID,"keyword","init cache","hello");
+
+    return newCache;
   }
 }

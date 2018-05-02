@@ -4,7 +4,7 @@ package top.zhubaiju.lvc;
  *
  * implments this interface to make sure LocalVolatileCache can get new config when listen config change
  *
- * @author 云中鹤 create at 2017/4/14 15:13
+ * @author 人山 create at 2017/4/14 15:13
  */
 public interface LocalVolatileCacheProcessor {
 

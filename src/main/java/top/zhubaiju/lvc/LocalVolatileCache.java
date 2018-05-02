@@ -5,7 +5,6 @@ import static java.util.Objects.*;
 import com.alibaba.fastjson.JSON;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.zookeeper.CreateMode;
@@ -13,6 +12,7 @@ import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.EventType;
+import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
@@ -20,7 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author 云中鹤 create at 2017/4/14 15:13
+ * @author 人山 create at 2017/4/14 15:13
  */
 
 public final class LocalVolatileCache implements Watcher {
@@ -73,13 +73,19 @@ public final class LocalVolatileCache implements Watcher {
   private void initZKConnection(String zkURL, Integer sessionTimeOut) {
     if (isCluster) {
       try {
-        zk = new ZooKeeper(zkURL, sessionTimeOut, this);
-        zk.create(this.generateConfigNodePath(),
+        //when connect zk, add watcher to notify child node add
+        zk = new ZooKeeper(zkURL, sessionTimeOut,this );
+        zk.create(this.generateCacheMetaNodePath(),
             appKey.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
             CreateMode.PERSISTENT,
             new CreateNodeCallBack(), "Create Node Success");
+        zk.exists(this.generateCacheMetaNodePath(),this);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
+      } catch (InterruptedException e) {
+        LOG.error("【LocalVolatileCache】 [initZKConnection] Happend InterruptedException  :", e);
+      } catch (KeeperException e) {
+        LOG.error("【LocalVolatileCache】 [initZKConnection] Happend KeeperException  :", e);
       }
 
     }
@@ -88,21 +94,21 @@ public final class LocalVolatileCache implements Watcher {
   /**
    * when try to register a existed cache, it will do nothing
    *
-   * @param localConfig localConfig
+   * @param localCache localCache
    */
-  private void register(Cache localConfig) {
+  private void register(Cache localCache) {
     // localConfig check
-    String check = localConfig.check();
+    String check = localCache.check();
     if (!Objects.equals("", check)) {
       throw new IllegalArgumentException(check);
     }
-    String configID = localConfig.getCacheMeta().getCacheId();
+    String configID = localCache.getCacheMeta().getCacheId();
     if (!cache.contains(configID)) {
-      cache.put(configID, localConfig);
+      cache.put(configID, localCache);
     }
 
     if (isCluster) {
-      registerRemote(localConfig);
+      registerRemote(localCache);
     }
   }
 
@@ -121,12 +127,13 @@ public final class LocalVolatileCache implements Watcher {
     try {
       Cache.CacheMeta cacheMeta = localCache.getCacheMeta();
       String cacheMetaNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
-      Stat stat = zk.exists(this.generateConfigNodePath() + "/" + cacheMetaNodeName, this);
+      //when register cache meta,add a watcher
+      Stat stat = zk.exists(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName, this);
       if (nonNull(stat)) {
         //exists--do nothing
       } else {
         // not exists
-        zk.create(this.generateConfigNodePath() + "/" + cacheMetaNodeName,
+        zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
             JSON.toJSONString(cacheMeta).getBytes(CHAR_SET),
             Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
       }
@@ -162,7 +169,7 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * @param localCache localConfig
+   * @param localCache localCache
    */
   public void refresh(Cache localCache) {
     String check = localCache.check();
@@ -175,6 +182,19 @@ public final class LocalVolatileCache implements Watcher {
     if (isCluster) {
       refreshRemote(localCache);
     }
+  }
+  /**
+   * when zk or base-datasource in error,call this method to insure cache right
+   * @param localCache localCache
+   */
+  public void refreshLocalForce(Cache localCache) {
+    String check = localCache.check();
+    if (nonNull(check) && !Objects.equals("", check)) {
+      throw new IllegalArgumentException(
+          "【LocalVolatileCache】 - [refresh] paramter error : " + check);
+    }
+    String cacheId = localCache.getCacheMeta().getCacheId();
+    cache.put(cacheId, localCache);
   }
 
 
@@ -329,7 +349,7 @@ public final class LocalVolatileCache implements Watcher {
   }
 
 
-  private String generateConfigNodePath() {
+  private String generateCacheMetaNodePath() {
     if ("/".equals(this.getParentPath())) {
       return this.getParentPath() + this.appKey;
     }
@@ -339,39 +359,61 @@ public final class LocalVolatileCache implements Watcher {
 
   @Override
   public void process(WatchedEvent watchedEvent) {
-    EventType eventType = watchedEvent.getType();
-    String path = watchedEvent.getPath();
-    System.out.println("监听到变化："+path+"---"+eventType);
-    LOG.info("Listen " + watchedEvent.getPath() + " have changed, change type is {}",
-        watchedEvent.getType());
-
-    Cache.CacheMeta meta = null;
-    String newInfo = "";
+    KeeperState keeperState =  watchedEvent.getState();
+    //在根节点注册监听
     try {
-      newInfo = new String(this.zk.getData(path, this, null), "UTF-8");
-      meta = JSON.parseObject(newInfo, Cache.CacheMeta.class);
-
-    } catch (UnsupportedEncodingException e) {
-      LOG.error("【LocalVolatileCache】 [process] happend UnsupportedEncodingException :",e);
+      zk.exists(this.generateCacheMetaNodePath(),this);
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache】 [process] happend KeeperException :",e);
     } catch (InterruptedException e) {
       LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :",e);
     }
+    EventType eventType = watchedEvent.getType();
+    String path = watchedEvent.getPath();
+    System.out.println("监听到变化："+path+"---"+eventType);
+    LOG.info("Listen path:【{}】 have changed, change type is {},state is {}",watchedEvent.getPath(),
+        watchedEvent.getType(),keeperState);
+    Cache.CacheMeta meta = null;
+    if( Objects.nonNull(path) && !Objects.equals("",path) ){
+      String newInfo = "";
+      try {
+        newInfo = new String(this.zk.getData(path, this, null), "UTF-8");
+        meta = JSON.parseObject(newInfo, Cache.CacheMeta.class);
+      } catch (UnsupportedEncodingException e) {
+        LOG.error("【LocalVolatileCache】 [process] happend UnsupportedEncodingException :",e);
+      } catch (KeeperException e) {
+        LOG.error("【LocalVolatileCache】 [process] happend KeeperException :",e);
+      } catch (InterruptedException e) {
+        LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :",e);
+      }
+      LOG.info("new info is :{}", newInfo);
+    }
+
+
     switch (eventType) {
       case None:
+        if( keeperState == KeeperState.Expired ){
+          this.initZKConnection(this.zkURL,this.sessionTimeOut);
+        }
         break;
       case NodeDataChanged:
-        LOG.info("new info is :{}", newInfo);
         listenRefresh(meta);
         break;
       case NodeCreated:
+        System.out.println("监听到变化："+path+"---"+eventType);
+        LOG.info("Listen " + watchedEvent.getPath() + " have changed, change type is {},state is {}",
+            watchedEvent.getType(),keeperState);
         get(meta.getCacheId());
         break;
       case NodeDeleted:
         listenRemove(meta);
         break;
+      case NodeChildrenChanged:
+        // just when add a new child node then do next is nessary
+        get(meta.getCacheId());
+        break;
       default:
+        System.out.println("不知道什么类型的监控");
         break;
 
     }

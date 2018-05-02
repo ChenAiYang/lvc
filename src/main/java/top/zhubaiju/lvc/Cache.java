@@ -3,7 +3,7 @@ package top.zhubaiju.lvc;
 import java.util.Objects;
 
 /**
- * @author 云中鹤 create at 2017/4/14 15:13
+ * @author 人山 create at 2017/4/14 15:13
  */
 public class Cache<T> {
 
