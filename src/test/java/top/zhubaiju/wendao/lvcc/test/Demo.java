@@ -25,10 +25,10 @@ public class Demo {
     cache2.setZkURL("127.0.0.1:2181");
     cache2.setCluster(true);
     cache2.setCachePro(new KeywordCacheHandler());
-//    cache2.init();
+    cache2.init();
 
     Thread t2 = new Thread(new Task(cache2));
-//    t2.start();
+    t2.start();
 
     while (true) {
       //程序不停止
@@ -51,6 +51,8 @@ public class Demo {
       while (true) {
 
         System.out.println(localVolatileCache.healthInfo());
+        Cache c = localVolatileCache.get("2");
+        System.out.println(JSON.toJSONString(c));
         LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 30);
       }
 

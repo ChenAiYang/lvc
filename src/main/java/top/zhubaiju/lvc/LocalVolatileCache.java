@@ -171,7 +171,7 @@ public final class LocalVolatileCache implements Watcher {
     return config;
   }
   /**
-   * show cache health info
+   * show local cache health info
    *
    */
   public String healthInfo() {
