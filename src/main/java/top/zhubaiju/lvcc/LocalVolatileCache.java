@@ -1,4 +1,4 @@
-package top.zhubaiju.lvc;
+package top.zhubaiju.lvcc;
 
 import static java.util.Objects.*;
 

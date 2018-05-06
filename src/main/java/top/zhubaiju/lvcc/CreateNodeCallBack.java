@@ -1,4 +1,4 @@
-package top.zhubaiju.lvc;
+package top.zhubaiju.lvcc;
 
 import org.apache.zookeeper.AsyncCallback;
 import org.slf4j.Logger;

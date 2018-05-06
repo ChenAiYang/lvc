@@ -5,8 +5,8 @@ import java.util.concurrent.locks.LockSupport;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import top.zhubaiju.lvc.Cache;
-import top.zhubaiju.lvc.LocalVolatileCache;
+import top.zhubaiju.lvcc.Cache;
+import top.zhubaiju.lvcc.LocalVolatileCache;
 
 /**
  * @author 人山 create at 2018/4/16 0:56
