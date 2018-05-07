@@ -5,6 +5,7 @@ import java.util.Objects;
 /**
  * @author 人山 create at 2017/4/14 15:13
  */
+@SuppressWarnings("unchecked")
 public class Cache<T> {
 
   private CacheMeta cacheMeta;

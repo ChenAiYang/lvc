@@ -182,9 +182,9 @@ public final class LocalVolatileCache implements Watcher {
     }
     desc.put("totalSize(Byte)",JSON.toJSONString(cache.values()).getBytes().length);
     Set<Entry<String,Cache>> entrySet = cache.entrySet();
-    entrySet.forEach(el->{
+    for(Entry<String,Cache> el : entrySet){
       desc.put(el.getKey()+"-"+el.getValue().getCacheMeta().getCacheName(),JSON.toJSONString(el.getValue()).getBytes().length);
-    });
+    }
     return desc.toJSONString();
   }
 
