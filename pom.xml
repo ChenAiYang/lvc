@@ -5,11 +5,18 @@
   <modelVersion>4.0.0</modelVersion>
   <name>lvcc</name>
   <url>https://github.com/ChenAiYang/lvcc</url>
-  <description>LVCC is a java project with zookeeper help cluster app hold volititle config info </description>
+  <description>LVCC is a java project with zookeeper help cluster app hold volititle config info
+  </description>
+
+  <!--<parent>
+    <groupId>org.sonatype.oss</groupId>
+    <artifactId>oss-parent</artifactId>
+    <version>7</version>
+  </parent>-->
 
   <groupId>top.zhubaiju</groupId>
   <artifactId>lvcc</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.0</version>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <fastjson-version>1.2.34</fastjson-version>
@@ -37,7 +44,6 @@
     <connection>scm:git:https://github.com/ChenAiYang/lvcc.git</connection>
     <developerConnection>scm:git:https://github.com/ChenAiYang/lvcc.git</developerConnection>
     <url>https://github.com/ChenAiYang/lvcc</url>
-    <tag>v${project.version}</tag>
   </scm>
 
 
@@ -98,81 +104,73 @@
 
 
   </dependencies>
+  <!-- -->
   <profiles>
     <profile>
       <id>release</id>
       <build>
-        <pluginManagement>
-          <plugins>
-            <!-- 编译插件 -->
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-compiler-plugin</artifactId>
-              <version>3.1</version>
-              <configuration>
-                <source>1.8</source>
-                <target>1.8</target>
-                <encoding>${project.build.sourceEncoding}</encoding>
-              </configuration>
-            </plugin>
-            <!--JavaDoc插件-->
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-javadoc-plugin</artifactId>
-              <version>2.10.4</version>
-              <executions>
-                <execution>
-                  <id>attach-javadocs</id>
-                  <goals>
-                    <goal>jar</goal>
-                  </goals>
-                </execution>
-              </executions>
-              <configuration>
-                <!-- 将子项目的doc输出到父项目的target下，合成一个共同的Javadoc -->
-                <aggregate>true</aggregate>
-                <encoding>${project.build.sourceEncoding}</encoding>
-                <charset>${project.build.sourceEncoding}</charset>
-                <docencoding>${project.build.sourceEncoding}</docencoding>
-              </configuration>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.5.1</version>
+            <configuration>
+              <source>${java_source_version}</source>
+              <target>${java_target_version}</target>
+              <testSource>${java_source_version}</testSource>
+              <testTarget>${java_target_version}</testTarget>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <version>2.10.4</version>
+            <configuration>
+              <encoding>${project.build.sourceEncoding}</encoding>
+              <aggregate>true</aggregate>
+              <charset>${project.build.sourceEncoding}</charset>
+              <docencoding>${project.build.sourceEncoding}</docencoding>
+            </configuration>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
 
-            </plugin>
-            <plugin>
-              <!--<groupId>org.apache.maven.plugins</groupId>-->
-              <artifactId>maven-source-plugin</artifactId>
-              <version>3.0.1</version>
-              <executions>
-                <execution>
-                  <phase>verify</phase>
-                </execution>
-                <execution>
-                  <id>attach-sources</id>
-                  <goals>
-                    <goal>jar-no-fork</goal>
-                  </goals>
-                </execution>
-              </executions>
-            </plugin>
-
-            <!-- GPG -->
-            <plugin> <!-- 进行延签 -->
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-gpg-plugin</artifactId>
-              <version>1.6</version>
-              <executions>
-                <execution>
-                  <id>sign-artifacts</id>
-                  <phase>verify</phase>
-                  <goals>
-                    <goal>sign</goal>
-                  </goals>
-                </execution>
-              </executions>
-            </plugin>
-
-          </plugins>
-        </pluginManagement>
+          <!--配置生成源码包-->
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-source-plugin</artifactId>
+            <version>3.0.1</version>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>1.1</version>
+            <executions>
+              <execution>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
       </build>
+
       <distributionManagement>
         <snapshotRepository>
           <id>oss-s</id>
@@ -184,15 +182,7 @@
         </repository>
       </distributionManagement>
     </profile>
-    <!--<profile>
-      <id>disable-java8-doclint</id>
-      <activation>
-        <jdk>[1.8,)</jdk>
-      </activation>
-      <properties>
-        <additionalparam>-Xdoclint:none</additionalparam>
-      </properties>
-    </profile>-->
+
   </profiles>
 
 
