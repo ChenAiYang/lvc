@@ -11,15 +11,15 @@ public interface LocalVolatileCacheProcessor {
   /**
    * when LocalVolatileCache listen config expired ,this method would be call and get a new config
    *
-   * @param expiredCacheID
+   * @param expiredCacheID expiredCacheID
    * @return a new config
    */
   Cache processExpired(String expiredCacheID);
 
   /**
    * when LVCC have no special configID,this method would be call
-   * @param notExistCacheID
-   * @return
+   * @param notExistCacheID notExistCacheID
+   * @return while cache have no special cache,customer should provide one
    */
   Cache processNotExist(String notExistCacheID);
 

@@ -77,12 +77,12 @@ public final class LocalVolatileCache implements Watcher {
     if (isCluster) {
       try {
         //when connect zk, add watcher to notify child node add
-        zk = new ZooKeeper(zkURL, sessionTimeOut,this );
+        zk = new ZooKeeper(zkURL, sessionTimeOut, this);
         zk.create(this.generateCacheMetaNodePath(),
             appKey.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
             CreateMode.PERSISTENT,
             new CreateNodeCallBack(), "Create Node Success");
-        zk.getChildren(this.generateCacheMetaNodePath(),this);
+        zk.getChildren(this.generateCacheMetaNodePath(), this);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
       } catch (InterruptedException e) {
@@ -159,6 +159,7 @@ public final class LocalVolatileCache implements Watcher {
    * get local config from cache
    *
    * @param cacheId configID
+   * @return Cache return a cache
    */
   public Cache get(String cacheId) {
     Cache config = this.cache.get(cacheId);
@@ -170,21 +171,28 @@ public final class LocalVolatileCache implements Watcher {
     }
     return config;
   }
+
   /**
    * show local cache health info
    *
+   * @return return cache health infomation
    */
   public String healthInfo() {
     JSONObject desc = new JSONObject();
-    desc.put("isCluster",this.isCluster);
-    if( isCluster ){
-      desc.put("zkState",zk.getState());
+    desc.put("isCluster", this.isCluster);
+    if (isCluster) {
+      desc.put("zkState", zk.getState());
     }
-    desc.put("totalSize(Byte)",JSON.toJSONString(cache.values()).getBytes().length);
-    Set<Entry<String,Cache>> entrySet = cache.entrySet();
-    for(Entry<String,Cache> el : entrySet){
-      desc.put(el.getKey()+"-"+el.getValue().getCacheMeta().getCacheName(),JSON.toJSONString(el.getValue()).getBytes().length);
-    }
+    desc.put("totalSize(Byte)", JSON.toJSONString(cache.values()).getBytes().length);
+    Set<Entry<String, Cache>> entrySet = cache.entrySet();
+//    for (Entry<String, Cache> el : entrySet) {
+//      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
+//          JSON.toJSONString(el.getValue()).getBytes().length);
+//    }
+    entrySet.forEach(el->{
+      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
+          JSON.toJSONString(el.getValue()).getBytes().length);
+    });
     return desc.toJSONString();
   }
 
@@ -203,8 +211,10 @@ public final class LocalVolatileCache implements Watcher {
       refreshRemote(localCache);
     }
   }
+
   /**
    * when zk or base-datasource in error,call this method to insure cache right
+   *
    * @param localCache localCache
    */
   public void refreshLocalForce(Cache localCache) {
@@ -320,6 +330,7 @@ public final class LocalVolatileCache implements Watcher {
 
   /**
    * listen zk change
+   *
    * @param meta -meta
    */
   protected void listenRemove(Cache.CacheMeta meta) {
@@ -379,48 +390,49 @@ public final class LocalVolatileCache implements Watcher {
 
   @Override
   public void process(WatchedEvent watchedEvent) {
-    KeeperState keeperState =  watchedEvent.getState();
+    KeeperState keeperState = watchedEvent.getState();
     try {
-      zk.getChildren(this.generateCacheMetaNodePath(),this);
+      zk.getChildren(this.generateCacheMetaNodePath(), this);
     } catch (KeeperException e) {
-      LOG.error("【LocalVolatileCache】 [process] happend KeeperException :",e);
+      LOG.error("【LocalVolatileCache】 [process] happend KeeperException :", e);
     } catch (InterruptedException e) {
-      LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :",e);
+      LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :", e);
     }
     EventType eventType = watchedEvent.getType();
     String path = watchedEvent.getPath();
-    LOG.info("Listen path:【{}】 have changed, change type is {},state is {}",watchedEvent.getPath(),
-        watchedEvent.getType(),keeperState);
+    LOG.info("Listen path:【{}】 have changed, change type is {},state is {}", watchedEvent.getPath(),
+        watchedEvent.getType(), keeperState);
     Cache.CacheMeta meta = null;
-    if( Objects.nonNull(path) && !Objects.equals("",path) && path.startsWith(this.generateCacheMetaNodePath()+"/")){
+    if (Objects.nonNull(path) && !Objects.equals("", path) && path
+        .startsWith(this.generateCacheMetaNodePath() + "/")) {
       String newInfo = "";
       try {
         newInfo = new String(this.zk.getData(path, this, null), "UTF-8");
         meta = JSON.parseObject(newInfo, Cache.CacheMeta.class);
       } catch (UnsupportedEncodingException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend UnsupportedEncodingException :",e);
+        LOG.error("【LocalVolatileCache】 [process] happend UnsupportedEncodingException :", e);
       } catch (KeeperException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend KeeperException :",e);
+        LOG.error("【LocalVolatileCache】 [process] happend KeeperException :", e);
       } catch (InterruptedException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :",e);
+        LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :", e);
       }
       LOG.info("new info is :{}", newInfo);
     }
 
-
     switch (eventType) {
       case None:
-        if( keeperState == KeeperState.Expired ){
-          this.initZKConnection(this.zkURL,this.sessionTimeOut);
+        if (keeperState == KeeperState.Expired) {
+          this.initZKConnection(this.zkURL, this.sessionTimeOut);
         }
         break;
       case NodeDataChanged:
         listenRefresh(meta);
         break;
       case NodeCreated:
-        System.out.println("监听到变化："+path+"---"+eventType);
-        LOG.info("Listen " + watchedEvent.getPath() + " have changed, change type is {},state is {}",
-            watchedEvent.getType(),keeperState);
+        System.out.println("监听到变化：" + path + "---" + eventType);
+        LOG.info(
+            "Listen " + watchedEvent.getPath() + " have changed, change type is {},state is {}",
+            watchedEvent.getType(), keeperState);
         get(meta.getCacheId());
         break;
       case NodeDeleted:
