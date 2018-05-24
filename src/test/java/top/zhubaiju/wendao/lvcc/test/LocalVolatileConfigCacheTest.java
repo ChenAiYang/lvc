@@ -17,7 +17,7 @@ public class LocalVolatileConfigCacheTest {
 
   private static LocalVolatileCache cache;
 
-  @BeforeClass
+//  @BeforeClass
   public static void initLocalConfigCache() {
     cache = new LocalVolatileCache();
     cache.setZkURL("127.0.0.1:2181");
@@ -27,20 +27,20 @@ public class LocalVolatileConfigCacheTest {
   }
 
 
-  @Test
+//  @Test
   public void refreshConfigTest() {
     Cache<String> config = Cache.getInstant("1", "Test", "HI-AA");
     cache.refresh(config);
   }
 
 
-  @Test
+//  @Test
   public void removeConfigTest(){
     Cache<String> config = Cache.getInstant("1", "Test", "HI-AA");
     cache.remove(config);
   }
 
-  @Test
+//  @Test
   public void getConfigTest(){
     Cache<String> config = cache.get("2");
     System.out.println(JSON.toJSONString(config));

@@ -40,7 +40,7 @@ public final class LocalVolatileCache implements Watcher {
   /**
    * CacheMeta Node Name,default is <code>"APP"</code>
    */
-  private String appKey = "APP";
+  private String namespace = "APP";
 
 
   protected ZooKeeper zk;
@@ -58,8 +58,16 @@ public final class LocalVolatileCache implements Watcher {
   private Boolean isCluster = false;
 
 
-  protected LocalVolatileCacheProcessor getCachePro() {
+  LocalVolatileCacheProcessor getCachePro() {
     return cachePro;
+  }
+
+  public String getNamespace() {
+    return namespace;
+  }
+
+  public void setNamespace(String namespace) {
+    this.namespace = namespace;
   }
 
   public void setCachePro(LocalVolatileCacheProcessor cachePro) {
@@ -79,7 +87,7 @@ public final class LocalVolatileCache implements Watcher {
         //when connect zk, add watcher to notify child node add
         zk = new ZooKeeper(zkURL, sessionTimeOut, this);
         zk.create(this.generateCacheMetaNodePath(),
-            appKey.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
+            namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
             CreateMode.PERSISTENT,
             new CreateNodeCallBack(), "Create Node Success");
         zk.getChildren(this.generateCacheMetaNodePath(), this);
@@ -185,14 +193,14 @@ public final class LocalVolatileCache implements Watcher {
     }
     desc.put("totalSize(Byte)", JSON.toJSONString(cache.values()).getBytes().length);
     Set<Entry<String, Cache>> entrySet = cache.entrySet();
-//    for (Entry<String, Cache> el : entrySet) {
-//      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
-//          JSON.toJSONString(el.getValue()).getBytes().length);
-//    }
-    entrySet.forEach(el->{
+    for (Entry<String, Cache> el : entrySet) {
       desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
           JSON.toJSONString(el.getValue()).getBytes().length);
-    });
+    }
+//    entrySet.forEach(el->{
+//      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
+//          JSON.toJSONString(el.getValue()).getBytes().length);
+//    });
     return desc.toJSONString();
   }
 
@@ -217,7 +225,7 @@ public final class LocalVolatileCache implements Watcher {
    *
    * @param localCache localCache
    */
-  public void refreshLocalForce(Cache localCache) {
+  public void refresh4Local(Cache localCache) {
     String check = localCache.check();
     if (nonNull(check) && !Objects.equals("", check)) {
       throw new IllegalArgumentException(
@@ -350,6 +358,10 @@ public final class LocalVolatileCache implements Watcher {
     }
   }
 
+  public void setParentPath(String parentPath) {
+    this.parentPath = parentPath;
+  }
+
   private String getParentPath() {
     return parentPath;
   }
@@ -382,9 +394,9 @@ public final class LocalVolatileCache implements Watcher {
 
   private String generateCacheMetaNodePath() {
     if ("/".equals(this.getParentPath())) {
-      return this.getParentPath() + this.appKey;
+      return this.getParentPath() + this.namespace;
     }
-    return this.getParentPath() + "/" + this.appKey;
+    return this.getParentPath() + "/" + this.namespace;
   }
 
 
