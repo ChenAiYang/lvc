@@ -21,7 +21,7 @@ public class LocalVolatileConfigCacheTest {
   public static void initLocalConfigCache() {
     cache = new LocalVolatileCache();
     cache.setZkURL("127.0.0.1:2181");
-    cache.setCluster(true);
+    cache.setClusterSwitch(true);
     cache.init();
     cache.setCachePro(new KeywordCacheHandler());
   }

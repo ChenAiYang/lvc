@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
@@ -55,7 +56,7 @@ public final class LocalVolatileCache implements Watcher {
    * Cluster mode flag,true--support cluster,false--a single instant application, default value is
    * false <br/> when the value is true,  Zookeeper will join and keep every app-node cache same.
    */
-  private Boolean isCluster = false;
+  private Boolean clusterSwitch = false;
 
 
   LocalVolatileCacheProcessor getCachePro() {
@@ -79,10 +80,10 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * when isCluster true,then  init ZK
+   * when clusterSwitch true,then  init ZK
    */
   private void initZKConnection(String zkURL, Integer sessionTimeOut) {
-    if (isCluster) {
+    if (clusterSwitch) {
       try {
         //when connect zk, add watcher to notify child node add
         zk = new ZooKeeper(zkURL, sessionTimeOut, this);
@@ -118,7 +119,7 @@ public final class LocalVolatileCache implements Watcher {
       cache.put(configID, localCache);
     }
 
-    if (isCluster) {
+    if (clusterSwitch) {
       registerRemote(localCache);
     }
   }
@@ -145,7 +146,7 @@ public final class LocalVolatileCache implements Watcher {
       } else {
         // not exists
         zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
-            JSON.toJSONString(cacheMeta).getBytes(CHAR_SET),
+            JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
             Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
       }
     } catch (KeeperException e) {
@@ -153,10 +154,6 @@ public final class LocalVolatileCache implements Watcher {
       LOG.error("【LocalVolatileCache】[registerRemote] hanpped KeeperException :", e);
     } catch (InterruptedException e) {
       LOG.error("【LocalVolatileCache】[registerRemote] hanpped InterruptedException :",
-          e);
-    } catch (UnsupportedEncodingException e) {
-      LOG.error(
-          "【LocalVolatileCache】[registerRemote] hanpped UnsupportedEncodingException :",
           e);
     }
 
@@ -187,8 +184,8 @@ public final class LocalVolatileCache implements Watcher {
    */
   public String healthInfo() {
     JSONObject desc = new JSONObject();
-    desc.put("isCluster", this.isCluster);
-    if (isCluster) {
+    desc.put("clusterSwitch", this.clusterSwitch);
+    if (clusterSwitch) {
       desc.put("zkState", zk.getState());
     }
     desc.put("totalSize(Byte)", JSON.toJSONString(cache.values()).getBytes().length);
@@ -215,7 +212,7 @@ public final class LocalVolatileCache implements Watcher {
     }
     String cacheId = localCache.getCacheMeta().getCacheId();
     cache.put(cacheId, localCache);
-    if (isCluster) {
+    if (clusterSwitch) {
       refreshRemote(localCache);
     }
   }
@@ -277,7 +274,7 @@ public final class LocalVolatileCache implements Watcher {
   public void remove(Cache localCache) {
     String cacheId = localCache.getCacheMeta().getCacheId();
     cache.remove(cacheId);
-    if (isCluster) {
+    if (clusterSwitch) {
       removeRemote(localCache);
     }
   }
@@ -319,8 +316,8 @@ public final class LocalVolatileCache implements Watcher {
    */
   public void resetZooKeeperConnection(String zkURL, Integer sessionTimeOut, Integer retryTimes,
       Long retryTimesGapMillionSecond) {
-    if (!isCluster) {
-      LOG.info("【LocalVolatileCache】 resetZooKeeperConnection refuse ! isCluster is false ");
+    if (!clusterSwitch) {
+      LOG.info("【LocalVolatileCache】 resetZooKeeperConnection refuse ! clusterSwitch is false ");
       return;
     }
     if (isNull(zkURL) || Objects.equals("", zkURL)) {
@@ -383,14 +380,13 @@ public final class LocalVolatileCache implements Watcher {
   }
 
 
-  Boolean getCluster() {
-    return isCluster;
+  public Boolean getClusterSwitch() {
+    return clusterSwitch;
   }
 
-  public void setCluster(Boolean cluster) {
-    isCluster = cluster;
+  public void setClusterSwitch(Boolean clusterSwitch) {
+    this.clusterSwitch = clusterSwitch;
   }
-
 
   private String generateCacheMetaNodePath() {
     if ("/".equals(this.getParentPath())) {
@@ -419,10 +415,8 @@ public final class LocalVolatileCache implements Watcher {
         .startsWith(this.generateCacheMetaNodePath() + "/")) {
       String newInfo = "";
       try {
-        newInfo = new String(this.zk.getData(path, this, null), "UTF-8");
+        newInfo = new String(this.zk.getData(path, this, null), Charset.forName("utf-8"));
         meta = JSON.parseObject(newInfo, Cache.CacheMeta.class);
-      } catch (UnsupportedEncodingException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend UnsupportedEncodingException :", e);
       } catch (KeeperException e) {
         LOG.error("【LocalVolatileCache】 [process] happend KeeperException :", e);
       } catch (InterruptedException e) {

@@ -13,7 +13,7 @@ public class Demo {
     LocalVolatileCache cache = new LocalVolatileCache();
     cache = new LocalVolatileCache();
     cache.setZkURL("127.0.0.1:2181");
-    cache.setCluster(true);
+    cache.setClusterSwitch(true);
     cache.setCachePro(new KeywordCacheHandler());
     cache.init();
 
@@ -22,7 +22,7 @@ public class Demo {
     LocalVolatileCache cache2 = new LocalVolatileCache();
     cache2 = new LocalVolatileCache();
     cache2.setZkURL("127.0.0.1:2181");
-    cache2.setCluster(true);
+    cache2.setClusterSwitch(true);
     cache2.setCachePro(new KeywordCacheHandler());
     cache2.init();
 

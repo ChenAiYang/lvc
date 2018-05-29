@@ -20,7 +20,7 @@ public class Cache<T> {
     this.cacheMeta = cacheMeta;
   }
 
-  T getData() {
+  public T getData() {
     return data;
   }
 
