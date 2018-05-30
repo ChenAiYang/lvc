@@ -53,6 +53,7 @@ public class Demo {
         Cache c = localVolatileCache.get("2");
         System.out.println(JSON.toJSONString(c));
         LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 30);
+        localVolatileCache.refresh(c);
       }
 
     }

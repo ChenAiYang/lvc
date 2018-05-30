@@ -245,10 +245,13 @@ public final class LocalVolatileCache implements Watcher {
     try {
       Cache.CacheMeta cacheMeta = localConfig.getCacheMeta();
       String configNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
-      Stat stat = zk.exists(this.getParentPath() + "/" + configNodeName, false);
+      Stat stat = zk.exists(generateCacheMetaNodePath() +"/"+ configNodeName, false);
       if (nonNull(stat)) {
+//        byte[] info = zk.getData(generateCacheMetaNodePath() +"/"+ configNodeName,null,null);
+//        String remoteInfo = new String(info,Charset.forName(CHAR_SET));
+//        LOG.info("Remote info :{}",remoteInfo);
         String newInfo = JSON.toJSONString(localConfig.getCacheMeta());
-        zk.setData(this.getParentPath() + "/" + configNodeName, newInfo.getBytes(CHAR_SET),
+        zk.setData(generateCacheMetaNodePath() + "/" + configNodeName, newInfo.getBytes(CHAR_SET),
             stat.getVersion());
       } else {
         LOG.error(
@@ -394,6 +397,8 @@ public final class LocalVolatileCache implements Watcher {
     }
     return this.getParentPath() + "/" + this.namespace;
   }
+
+
 
 
   @Override
