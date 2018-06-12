@@ -31,7 +31,7 @@ public class Demo {
     cache2.init();
 
     Thread t2 = new Thread(new Task(cache2));
-    //t2.start();
+    t2.start();
 
     while (true) {
       //程序不停止

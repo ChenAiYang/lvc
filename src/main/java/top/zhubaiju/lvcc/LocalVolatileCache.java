@@ -22,6 +22,7 @@ import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooDefs.Ids;
+import org.apache.zookeeper.ZooDefs.Perms;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Id;
@@ -478,8 +479,12 @@ public final class LocalVolatileCache implements Watcher {
     Id id = null;
     try {
       id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP+":"+authF));
+      Id readId = Ids.ANYONE_ID_UNSAFE;
+
       ACL acl = new ACL(ZooDefs.Perms.ALL, id);
+      ACL aclRead = new ACL(Perms.READ, readId);
       aclList.add(acl);
+      aclList.add(aclRead);
     } catch (NoSuchAlgorithmException e) {
       e.printStackTrace();
     }
