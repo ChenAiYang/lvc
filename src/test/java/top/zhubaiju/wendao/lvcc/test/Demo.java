@@ -15,6 +15,8 @@ public class Demo {
     cache.setZkURL("127.0.0.1:2181");
     cache.setClusterSwitch(true);
     cache.setCachePro(new KeywordCacheHandler());
+    cache.setAuthP("PDT");
+    cache.setAuthF("PDTP");
     cache.init();
 
     Thread t = new Thread(new Task(cache));
@@ -24,10 +26,12 @@ public class Demo {
     cache2.setZkURL("127.0.0.1:2181");
     cache2.setClusterSwitch(true);
     cache2.setCachePro(new KeywordCacheHandler());
+    cache2.setAuthP("PDT");
+    cache2.setAuthF("PDTP");
     cache2.init();
 
     Thread t2 = new Thread(new Task(cache2));
-    t2.start();
+    //t2.start();
 
     while (true) {
       //程序不停止

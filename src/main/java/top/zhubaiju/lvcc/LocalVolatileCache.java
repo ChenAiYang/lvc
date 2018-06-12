@@ -7,6 +7,9 @@ import com.alibaba.fastjson.JSONObject;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
@@ -17,9 +20,13 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
+import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooDefs.Ids;
 import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.data.ACL;
+import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.data.Stat;
+import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +57,8 @@ public final class LocalVolatileCache implements Watcher {
    */
   private String parentPath = "/";
   private String zkURL;
+  private String authP;
+  private String authF;
   private Integer sessionTimeOut = 30000;
 
   /**
@@ -71,6 +80,22 @@ public final class LocalVolatileCache implements Watcher {
     this.namespace = namespace;
   }
 
+  String getAuthP() {
+    return authP;
+  }
+
+  public void setAuthP(String authP) {
+    this.authP = authP;
+  }
+
+  String getAuthF() {
+    return authF;
+  }
+
+  public void setAuthF(String authF) {
+    this.authF = authF;
+  }
+
   public void setCachePro(LocalVolatileCacheProcessor cachePro) {
     this.cachePro = cachePro;
   }
@@ -87,10 +112,29 @@ public final class LocalVolatileCache implements Watcher {
       try {
         //when connect zk, add watcher to notify child node add
         zk = new ZooKeeper(zkURL, sessionTimeOut, this);
-        zk.create(this.generateCacheMetaNodePath(),
-            namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
-            CreateMode.PERSISTENT,
-            new CreateNodeCallBack(), "Create Node Success");
+        if( needAuthSec() ){
+
+          zk.addAuthInfo("digest", (authP+":"+authF).getBytes(Charset.forName(CHAR_SET)));
+          List<ACL> aclList = generateACL();
+          if( Objects.nonNull(aclList) && !aclList.isEmpty() ){
+            zk.create(this.generateCacheMetaNodePath(),
+                namespace.getBytes(CHAR_SET), aclList,
+                CreateMode.PERSISTENT,
+                new CreateNodeCallBack(), "Create Node Success");
+          }else{
+
+            zk.create(this.generateCacheMetaNodePath(),
+                namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
+                CreateMode.PERSISTENT,
+                new CreateNodeCallBack(), "Create Node Success");
+          }
+        }else{
+
+          zk.create(this.generateCacheMetaNodePath(),
+              namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
+              CreateMode.PERSISTENT,
+              new CreateNodeCallBack(), "Create Node Success");
+        }
         zk.getChildren(this.generateCacheMetaNodePath(), this);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
@@ -145,9 +189,24 @@ public final class LocalVolatileCache implements Watcher {
         //exists--do nothing
       } else {
         // not exists
-        zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
-            JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
-            Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        if( needAuthSec() ){
+          List<ACL> aclList = generateACL();
+          if( !aclList.isEmpty() ){
+            zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
+                JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
+                aclList, CreateMode.PERSISTENT);
+          }else{
+            zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
+                JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
+                Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+          }
+
+        }else{
+
+          zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
+              JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
+              Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        }
       }
     } catch (KeeperException e) {
       e.printStackTrace();
@@ -245,12 +304,16 @@ public final class LocalVolatileCache implements Watcher {
     try {
       Cache.CacheMeta cacheMeta = localConfig.getCacheMeta();
       String configNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
-      Stat stat = zk.exists(generateCacheMetaNodePath() +"/"+ configNodeName, false);
+
+      Stat stat = zk.exists(generateCacheMetaNodePath() +"/"+ configNodeName, this);
       if (nonNull(stat)) {
 //        byte[] info = zk.getData(generateCacheMetaNodePath() +"/"+ configNodeName,null,null);
 //        String remoteInfo = new String(info,Charset.forName(CHAR_SET));
 //        LOG.info("Remote info :{}",remoteInfo);
         String newInfo = JSON.toJSONString(localConfig.getCacheMeta());
+        if(needAuthSec()){
+          zk.addAuthInfo("digest", (authP+":"+authF).getBytes(Charset.forName(CHAR_SET)));
+        }
         zk.setData(generateCacheMetaNodePath() + "/" + configNodeName, newInfo.getBytes(CHAR_SET),
             stat.getVersion());
       } else {
@@ -396,6 +459,31 @@ public final class LocalVolatileCache implements Watcher {
       return this.getParentPath() + this.namespace;
     }
     return this.getParentPath() + "/" + this.namespace;
+  }
+
+  /**
+   * when authP and authF have valide value indicate need auth sec
+   * @return true or false
+   */
+  private boolean needAuthSec(){
+    if( Objects.nonNull(authP) && !Objects.equals("",authP) &&
+        Objects.nonNull(authF) && !Objects.equals("",authF)  ){
+      return true;
+    }
+    return false;
+  }
+
+  private List<ACL> generateACL(){
+    List<ACL> aclList = new ArrayList<>();
+    Id id = null;
+    try {
+      id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP+":"+authF));
+      ACL acl = new ACL(ZooDefs.Perms.ALL, id);
+      aclList.add(acl);
+    } catch (NoSuchAlgorithmException e) {
+      e.printStackTrace();
+    }
+    return aclList;
   }
 
 
