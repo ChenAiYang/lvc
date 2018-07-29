@@ -13,6 +13,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.LockSupport;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -84,13 +85,10 @@ public final class LocalVolatileCache implements Watcher {
             sessionTimeOut, this);
         List<ACL> aclList = Ids.OPEN_ACL_UNSAFE;
         if (localVolatileConfig.needAuthSec()) {
-          //security mode
-          zk.addAuthInfo("digest",
-              (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
-                  .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
           aclList = localVolatileConfig.generateACL();
         }
         initZKCacheNodePath(zk, aclList);
+
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
       }
@@ -102,30 +100,25 @@ public final class LocalVolatileCache implements Watcher {
    * idempotent method
    */
   private void initZKCacheNodePath(ZooKeeper zk, List<ACL> aclList) {
+    String currentCacheNodePath = localVolatileConfig.zkCacheNodePath();
+    String currentCacheNodeName = localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule();
     try {
       Stat stat = zk
-          .exists(localVolatileConfig.zkCacheNodePath() + "/" + localVolatileConfig.getNamespace(),
+          .exists( currentCacheNodePath,
               this);
       if (Objects.nonNull(stat)) {
         LOG.info(
-            "【LocalVolatileCache.initZKCacheNodePath】 :【{}】 Already Exist.",
-            localVolatileConfig.zkCacheNodePath() + "/" + localVolatileConfig.getNamespace());
+            "【LocalVolatileCache.initZKCacheNodePath】 :【{}】 Already Exist.",currentCacheNodePath);
       } else {
-        if (Objects.nonNull(aclList) && !aclList.isEmpty()) {
-          aclList = localVolatileConfig.generateACL();
-        } else {
-          aclList = Ids.OPEN_ACL_UNSAFE;
-        }
-        zk.create(localVolatileConfig.zkCacheNodePath(),
-            (localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule())
-                .getBytes(LVCCConstant.CHAR_SET), aclList,
+        zk.create(currentCacheNodePath,currentCacheNodeName.getBytes(LVCCConstant.CHAR_SET), aclList,
             CreateMode.PERSISTENT,
             new CreateNodeCallBack(), "Create Node Success");
-        LOG.info("【initZKConnection】- zkCacheNode :【{}】 Create Success.",
-            localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule());
+        //create node with sync mode.wait for 2 second.
+        LockSupport.parkUntil(System.currentTimeMillis()+1000*2);
+        LOG.info("【initZKConnection】- zkCacheNode :【{}】 Create Success.",currentCacheNodePath);
       }
       // set children listen after init cachaeNode
-      zk.getChildren(localVolatileConfig.zkCacheNodePath(), this);
+      zk.getChildren(currentCacheNodePath, this);
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache】 [initZKCacheNodePath] Happend KeeperException  :", e);
     } catch (InterruptedException e) {
@@ -157,7 +150,7 @@ public final class LocalVolatileCache implements Watcher {
    * @param newLocalCache  newLocalCache
    */
   public void broadcastCacheChange(Cache newLocalCache) {
-    CacheBuilder.check(newLocalCache);
+    CacheBuilder.getInstant().check(newLocalCache);
     String cacheId = newLocalCache.getId();
     if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
       if (cache.contains(cacheId)) {
@@ -187,6 +180,12 @@ public final class LocalVolatileCache implements Watcher {
         String newInfo = JSON.toJSONStringWithDateFormat(newLocalCache,"yyyy-MM-dd HH:mm:ss");
         JSONObject jo = JSON.parseObject(newInfo);
         jo.remove("data");
+        if (localVolatileConfig.needAuthSec()) {
+          //security mode
+          zk.addAuthInfo("digest",
+              (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
+                  .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
+        }
         zk.setData(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, (jo.toJSONString()).getBytes(LVCCConstant.CHAR_SET),
             stat.getVersion());
         LOG.info("【LocalVolatileCache.modifyRemoteCache】 - modify remote success.");
@@ -246,7 +245,7 @@ public final class LocalVolatileCache implements Watcher {
       Stat stat = zk.exists(localVolatileConfig.zkCacheNodePath() + "/" + cacheInstantName, this);
       if (nonNull(stat)) {
         LOG.info("【LocalVolatileCache.commitRemote】 - Cache :【{}】 Already exists!",
-            JSON.toJSONString(localCache));
+            JSON.toJSONStringWithDateFormat(localCache,"yyyy-MM-dd HH:mm:ss"));
         return;
       } else {
         List<ACL> aclList = Ids.OPEN_ACL_UNSAFE;
@@ -254,6 +253,7 @@ public final class LocalVolatileCache implements Watcher {
         if (localVolatileConfig.needAuthSec()) {
           aclList = localVolatileConfig.generateACL();
         }
+
         String temp = JSON.toJSONStringWithDateFormat(localCache,"yyyy-MM-dd HH:mm:ss");
         JSONObject tempObj = JSON.parseObject(temp);
         tempObj.remove("data");
@@ -305,6 +305,12 @@ public final class LocalVolatileCache implements Watcher {
             "【LocalVolatileCache.removeRemote】Cache【{}】 Do not exists,or delete by other application instant.",
             JSON.toJSONString(localCache));
         return;
+      }
+      if (localVolatileConfig.needAuthSec()) {
+        //security mode
+        zk.addAuthInfo("digest",
+            (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
+                .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
       }
       zk.delete(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, stat.getVersion());
       LOG.info("【LocalVolatileCache.removeRemote】 Cache【{}】delete success.",
@@ -395,7 +401,10 @@ public final class LocalVolatileCache implements Watcher {
     KeeperState keeperState = watchedEvent.getState();
     try {
       //relistene children node
-      zk.getChildren( localVolatileConfig.zkCacheNodePath(), this);
+      Stat stat = zk.exists(localVolatileConfig.zkCacheNodePath(),this);
+      if ( Objects.nonNull(stat) ){
+        zk.getChildren( localVolatileConfig.zkCacheNodePath(), this);
+      }
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache.process】 happend KeeperException :", e);
     } catch (InterruptedException e) {

@@ -132,6 +132,10 @@ public class LocalVolatileConfig {
     return false;
   }
 
+  /**
+   * caculate cache path like : /[zkPath]/[namespace]-[moudle]
+   * @return
+   */
   public String zkCacheNodePath() {
     StringBuilder sbd = new StringBuilder();
     if (Objects.equals(LVCCConstant.DEFAULT_BASE_ZK_PATHE, this.getZkPath())) {
@@ -147,9 +151,9 @@ public class LocalVolatileConfig {
 
   public List<ACL> generateACL() {
     List<ACL> aclList = new ArrayList<>();
-    Id id = null;
+
     try {
-      id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP + ":" + authF));
+      Id id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP + ":" + authF));
       Id readId = Ids.ANYONE_ID_UNSAFE;
       ACL acl = new ACL(ZooDefs.Perms.ALL, id);
       ACL aclRead = new ACL(Perms.READ, readId);
