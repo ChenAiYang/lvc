@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
+import java.security.acl.Acl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -30,9 +31,15 @@ import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import top.zhubaiju.common.LVCCConstant;
+import top.zhubaiju.common.ZBJException;
+import top.zhubaiju.lvcc.support.CreateNodeCallBack;
+import top.zhubaiju.lvcc.support.DefaultCacheHandler;
+import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
+import top.zhubaiju.lvcc.support.LocalVolatileConfig;
 
 /**
- * @author 人山 create at 2017/4/14 15:13
+ * @author iyoung chen create at 2017/4/14 15:13
  */
 
 public final class LocalVolatileCache implements Watcher {
@@ -41,182 +48,283 @@ public final class LocalVolatileCache implements Watcher {
 
   private ConcurrentHashMap<String, Cache> cache = new ConcurrentHashMap<>();
 
-  private LocalVolatileCacheProcessor cachePro = new DefaultCacheHandler();
+  private LocalVolatileCacheProcessor cacheProcessor ;
 
-  private static final String CHAR_SET = "UTF-8";
+  private LocalVolatileConfig localVolatileConfig;
 
+  private ZooKeeper zk;
 
-  /**
-   * CacheMeta Node Name,default is <code>"APP"</code>
-   */
-  private String namespace = "APP";
-
-
-  protected ZooKeeper zk;
-  /**
-   * CacheMeta Node Parent Path .default is "/"
-   */
-  private String parentPath = "/";
-  private String zkURL;
-  private String authP;
-  private String authF;
-  private Integer sessionTimeOut = 30000;
-
-  /**
-   * Cluster mode flag,true--support cluster,false--a single instant application, default value is
-   * false <br/> when the value is true,  Zookeeper will join and keep every app-node cache same.
-   */
-  private Boolean clusterSwitch = false;
-
-
-  LocalVolatileCacheProcessor getCachePro() {
-    return cachePro;
+  public LocalVolatileConfig getLocalVolatileConfig() {
+    return localVolatileConfig;
   }
 
-  public String getNamespace() {
-    return namespace;
+  public void setLocalVolatileConfig(LocalVolatileConfig localVolatileConfig) {
+    this.localVolatileConfig = localVolatileConfig;
   }
 
-  public void setNamespace(String namespace) {
-    this.namespace = namespace;
+  public LocalVolatileCacheProcessor getCacheProcessor() {
+    return cacheProcessor;
   }
 
-  String getAuthP() {
-    return authP;
-  }
-
-  public void setAuthP(String authP) {
-    this.authP = authP;
-  }
-
-  String getAuthF() {
-    return authF;
-  }
-
-  public void setAuthF(String authF) {
-    this.authF = authF;
-  }
-
-  public void setCachePro(LocalVolatileCacheProcessor cachePro) {
-    this.cachePro = cachePro;
+  public void setCacheProcessor(LocalVolatileCacheProcessor cacheProcessor) {
+    this.cacheProcessor = cacheProcessor;
   }
 
   public void init() {
-    initZKConnection(this.getZkURL(), this.getSessionTimeOut());
+    if( Objects.isNull(cacheProcessor) ){
+      throw new ZBJException("【Illegal LocalVolatileCache】 -cacheProcessor can not be null !");
+    }
+    if (Objects.isNull(localVolatileConfig)) {
+      throw new ZBJException("【Illegal LocalVolatileCache】 -localVolatileConfig can not be null !");
+    }
+    initZKConnection(localVolatileConfig.getZkServerURL(),localVolatileConfig.getSessionTimeOut().intValue());
   }
 
   /**
    * when clusterSwitch true,then  init ZK
    */
-  private void initZKConnection(String zkURL, Integer sessionTimeOut) {
-    if (clusterSwitch) {
+  private void initZKConnection(String zkServerUrl,Integer sessionTimeOut) {
+    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
       try {
         //when connect zk, add watcher to notify child node add
-        zk = new ZooKeeper(zkURL, sessionTimeOut, this);
-        if( needAuthSec() ){
-
-          zk.addAuthInfo("digest", (authP+":"+authF).getBytes(Charset.forName(CHAR_SET)));
-          List<ACL> aclList = generateACL();
-          if( Objects.nonNull(aclList) && !aclList.isEmpty() ){
-            zk.create(this.generateCacheMetaNodePath(),
-                namespace.getBytes(CHAR_SET), aclList,
-                CreateMode.PERSISTENT,
-                new CreateNodeCallBack(), "Create Node Success");
-          }else{
-
-            zk.create(this.generateCacheMetaNodePath(),
-                namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
-                CreateMode.PERSISTENT,
-                new CreateNodeCallBack(), "Create Node Success");
-          }
-        }else{
-
-          zk.create(this.generateCacheMetaNodePath(),
-              namespace.getBytes(CHAR_SET), Ids.OPEN_ACL_UNSAFE,
-              CreateMode.PERSISTENT,
-              new CreateNodeCallBack(), "Create Node Success");
+        zk = new ZooKeeper(zkServerUrl,
+            sessionTimeOut, this);
+        List<ACL> aclList = Ids.OPEN_ACL_UNSAFE;
+        if (localVolatileConfig.needAuthSec()) {
+          //security mode
+          zk.addAuthInfo("digest",
+              (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
+                  .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
+          aclList = localVolatileConfig.generateACL();
         }
-        zk.getChildren(this.generateCacheMetaNodePath(), this);
+        initZKCacheNodePath(zk, aclList);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
-      } catch (InterruptedException e) {
-        LOG.error("【LocalVolatileCache】 [initZKConnection] Happend InterruptedException  :", e);
-      } catch (KeeperException e) {
-        LOG.error("【LocalVolatileCache】 [initZKConnection] Happend KeeperException  :", e);
       }
-
     }
   }
 
   /**
-   * when try to register a existed cache, it will do nothing
-   *
-   * @param localCache localCache
+   * Init zk cache-node path,after init success, set listener for children node <br/>
+   * idempotent method
    */
-  private void register(Cache localCache) {
-    // localConfig check
-    String check = localCache.check();
-    if (!Objects.equals("", check)) {
-      throw new IllegalArgumentException(check);
-    }
-    String configID = localCache.getCacheMeta().getCacheId();
-    if (!cache.contains(configID)) {
-      cache.put(configID, localCache);
-    }
-
-    if (clusterSwitch) {
-      registerRemote(localCache);
+  private void initZKCacheNodePath(ZooKeeper zk, List<ACL> aclList) {
+    try {
+      Stat stat = zk
+          .exists(localVolatileConfig.zkCacheNodePath() + "/" + localVolatileConfig.getNamespace(),
+              this);
+      if (Objects.nonNull(stat)) {
+        LOG.info(
+            "【LocalVolatileCache.initZKCacheNodePath】 :【{}】 Already Exist.",
+            localVolatileConfig.zkCacheNodePath() + "/" + localVolatileConfig.getNamespace());
+      } else {
+        if (Objects.nonNull(aclList) && !aclList.isEmpty()) {
+          aclList = localVolatileConfig.generateACL();
+        } else {
+          aclList = Ids.OPEN_ACL_UNSAFE;
+        }
+        zk.create(localVolatileConfig.zkCacheNodePath(),
+            (localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule())
+                .getBytes(LVCCConstant.CHAR_SET), aclList,
+            CreateMode.PERSISTENT,
+            new CreateNodeCallBack(), "Create Node Success");
+        LOG.info("【initZKConnection】- zkCacheNode :【{}】 Create Success.",
+            localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule());
+      }
+      // set children listen after init cachaeNode
+      zk.getChildren(localVolatileConfig.zkCacheNodePath(), this);
+    } catch (KeeperException e) {
+      LOG.error("【LocalVolatileCache】 [initZKCacheNodePath] Happend KeeperException  :", e);
+    } catch (InterruptedException e) {
+      LOG.error("【LocalVolatileCache】 [initZKCacheNodePath] Happend InterruptedException  :", e);
+    } catch (UnsupportedEncodingException e) {
+      LOG.error("【LocalVolatileCache.initZKCacheNodePath】 happend UnsupportedEncodingException :",
+          e);
     }
   }
 
 
   /**
-   * when try to register a existed cache, it will do nothing
+   * this method will called when application instant listen zk cache data changed
+   * @param cacheId
+   */
+  private void reload(String cacheId) {
+    cacheProcessorCheck("LocalVolatileCache.reload");
+    Cache newLocalCache = cacheProcessor.processExpired(cacheId);
+    if( Objects.isNull(newLocalCache) ){
+      LOG.error("【LocalVolatileCache.reload】- cache id :【{}】 can not load new cache .",cacheId);
+      return;
+    }
+    cache.put(cacheId,newLocalCache);
+  }
+
+
+  /**
+   * notify all application instant cache changed
+   * @param newLocalCache  newLocalCache
+   */
+  public void broadcastCacheChange(Cache newLocalCache) {
+    CacheBuilder.check(newLocalCache);
+    String cacheId = newLocalCache.getId();
+    if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
+      if (cache.contains(cacheId)) {
+        cache.put(newLocalCache.getId(), newLocalCache);
+      } else {
+        LOG.warn("【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 do not exists.",
+            cacheId);
+        return;
+      }
+    } else {
+      modifyRemoteCache(newLocalCache);
+    }
+    LOG.info("【LocalVolatileCache.broadcastCacheChange】 success.new cache is :{}",
+        JSON.toJSONString(newLocalCache));
+  }
+
+  /**
+   * notify all application instant cache changed
+   * @param newLocalCache newLocalCache
+   */
+  private void modifyRemoteCache(Cache newLocalCache) {
+    zkCheck("LocalVolatileCache.modifyRemoteCache");
+    try {
+      String configNodeName = newLocalCache.getId() + "-" + newLocalCache.getName();
+      Stat stat = zk.exists(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, this);
+      if (nonNull(stat)) {
+        String newInfo = JSON.toJSONStringWithDateFormat(newLocalCache,"yyyy-MM-dd HH:mm:ss");
+        JSONObject jo = JSON.parseObject(newInfo);
+        jo.remove("data");
+        zk.setData(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, (jo.toJSONString()).getBytes(LVCCConstant.CHAR_SET),
+            stat.getVersion());
+        LOG.info("【LocalVolatileCache.modifyRemoteCache】 - modify remote success.");
+        //TODO 修改完毕之后，是否需要再次进行监听
+      } else {
+        LOG.error(
+            "【LocalVolatileCache.modifyRemoteCache】 - cache node :【{}】 do not exists.",localVolatileConfig.zkCacheNodePath() + "/" + configNodeName);
+      }
+    } catch (KeeperException e) {
+      LOG.error("【LocalVolatileCache.modifyRemoteCache】 hanpped KeeperException :", e);
+      throw new ZBJException("【LocalVolatileCache.modifyRemoteCache】 happend KeeperException");
+    } catch (InterruptedException e) {
+      LOG.error("【LocalVolatileCache.modifyRemoteCache】 hanpped InterruptedException :",
+          e);
+      throw new ZBJException("【LocalVolatileCache.modifyRemoteCache】 happend InterruptedException");
+    } catch (UnsupportedEncodingException e) {
+      LOG.error(
+          "【LocalVolatileCache.modifyRemoteCache】 hanpped UnsupportedEncodingException :",
+          e);
+      throw new ZBJException("【LocalVolatileCache.modifyRemoteCache】 happend UnsupportedEncodingException");
+    }
+
+  }
+
+  /**
+   * commit a cache to LVCC manager it .<br/>
+   * idempotent method
+   *
+   * @param localCache - a localCache
+   */
+  public void commit(Cache localCache) {
+    if (Objects.isNull(localCache)) {
+      return;
+    }
+    String cacheId = localCache.getId();
+
+    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+      commitRemote(localCache);
+    }
+    if (cache.contains(cacheId)) {
+      return;
+    }
+    cache.put(cacheId, localCache);
+  }
+
+  /**
+   * commit a cache to LVCC-REMOTE manager it<br/>
+   * idempotent method
    *
    * @param localCache - localCache
    */
-  private void registerRemote(Cache localCache) {
-    if (isNull(zk)) {
-      LOG.error(
-          "【LocalVolatileCache】 - [registerRemote] failure ! ZooKeeper Connection is null !");
-      return;
-    }
+  private void commitRemote(Cache localCache) throws ZBJException {
+    zkCheck("LocalVolatileCache.commitRemote");
     try {
-      Cache.CacheMeta cacheMeta = localCache.getCacheMeta();
-      String cacheMetaNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
+      String cacheInstantName = localCache.getId() + "-" + localCache.getName();
       //when register cache meta,add a watcher
-      Stat stat = zk.exists(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName, this);
+      Stat stat = zk.exists(localVolatileConfig.zkCacheNodePath() + "/" + cacheInstantName, this);
       if (nonNull(stat)) {
-        //exists--do nothing
+        LOG.info("【LocalVolatileCache.commitRemote】 - Cache :【{}】 Already exists!",
+            JSON.toJSONString(localCache));
+        return;
       } else {
+        List<ACL> aclList = Ids.OPEN_ACL_UNSAFE;
         // not exists
-        if( needAuthSec() ){
-          List<ACL> aclList = generateACL();
-          if( !aclList.isEmpty() ){
-            zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
-                JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
-                aclList, CreateMode.PERSISTENT);
-          }else{
-            zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
-                JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
-                Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-          }
-
-        }else{
-
-          zk.create(this.generateCacheMetaNodePath() + "/" + cacheMetaNodeName,
-              JSON.toJSONString(cacheMeta).getBytes(Charset.forName("utf-8")),
-              Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+        if (localVolatileConfig.needAuthSec()) {
+          aclList = localVolatileConfig.generateACL();
         }
+        String temp = JSON.toJSONStringWithDateFormat(localCache,"yyyy-MM-dd HH:mm:ss");
+        JSONObject tempObj = JSON.parseObject(temp);
+        tempObj.remove("data");
+        zk.create(localVolatileConfig.zkCacheNodePath() + "/" + cacheInstantName,
+            (tempObj.toJSONString()).getBytes(Charset.forName("utf-8")),
+            aclList, CreateMode.PERSISTENT);
+        //TODO 新建节点后，是否需要额外设置监听
+        LOG.info(
+            "【LocalVolatileCache.commitRemote】 - commit remote success. Cache Node Instant info :【{}】 .",
+            JSON.toJSONString(tempObj));
       }
     } catch (KeeperException e) {
-      e.printStackTrace();
-      LOG.error("【LocalVolatileCache】[registerRemote] hanpped KeeperException :", e);
+      LOG.error("【LocalVolatileCache.commitRemote】 hanpped KeeperException :", e);
+      throw new ZBJException(
+          "【LocalVolatileCache.commitRemote】 commit failure ! - KeeperException ");
     } catch (InterruptedException e) {
-      LOG.error("【LocalVolatileCache】[registerRemote] hanpped InterruptedException :",
-          e);
+      LOG.error("【LocalVolatileCache.commitRemote】 hanpped InterruptedException :", e);
+      throw new ZBJException(
+          "【LocalVolatileCache.commitRemote】 commit failure ! - InterruptedException ");
     }
+  }
 
+  /**
+   * remove a cache from LVCC .<br/>
+   * idempotent method
+   */
+  public void remove(Cache localCache) {
+    if (Objects.isNull(localCache)) {
+      LOG.warn("【LocalVolatileCache.remove】 - try remove a cache which is null  ! ");
+      return;
+    }
+    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+      removeRemote(localCache);
+    }
+    cache.remove(localCache.getId());
+  }
+
+  /**
+   * remove a cache from LVCC-REMOTE .<br/>
+   * idempotent method
+   */
+  public void removeRemote(Cache localCache) {
+    zkCheck("LocalVolatileCache.removeRemote");
+    try {
+      String configNodeName = localCache.getId() + "-" + localCache.getName();
+      Stat stat = zk.exists(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, true);
+      if (Objects.isNull(stat)) {
+        LOG.info(
+            "【LocalVolatileCache.removeRemote】Cache【{}】 Do not exists,or delete by other application instant.",
+            JSON.toJSONString(localCache));
+        return;
+      }
+      zk.delete(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, stat.getVersion());
+      LOG.info("【LocalVolatileCache.removeRemote】 Cache【{}】delete success.",
+          JSON.toJSONString(localCache));
+    } catch (KeeperException e) {
+      LOG.error("【LocalVolatileCache.removeRemote】execute hanpped KeeperException :", e);
+      throw new ZBJException(
+          "【LocalVolatileCache.removeRemote】 execute failure ! - KeeperException ");
+    } catch (InterruptedException e) {
+      LOG.error("【LocalVolatileCache.removeRemote】execute hanpped InterruptedException :", e);
+      throw new ZBJException(
+          "【LocalVolatileCache.removeRemote】 execute failure ! - KeeperException ");
+    }
   }
 
 
@@ -227,14 +335,16 @@ public final class LocalVolatileCache implements Watcher {
    * @return Cache return a cache
    */
   public Cache get(String cacheId) {
-    Cache config = this.cache.get(cacheId);
-    if (Objects.isNull(config)) {
-      config = cachePro.processNotExist(cacheId);
-      if (nonNull(config)) {
-        register(config);
+    Cache localCache = this.cache.get(cacheId);
+    if (Objects.isNull(localCache)) {
+      cacheProcessorCheck("LocalVolatileCache.get");
+      localCache = cacheProcessor.processNotExist(cacheId);
+      if (nonNull(localCache)) {
+        //TODO 此处是否需要考虑使用异步方式完成添加
+        commit(localCache);
       }
     }
-    return config;
+    return localCache;
   }
 
   /**
@@ -244,134 +354,20 @@ public final class LocalVolatileCache implements Watcher {
    */
   public String healthInfo() {
     JSONObject desc = new JSONObject();
-    desc.put("clusterSwitch", this.clusterSwitch);
-    if (clusterSwitch) {
+    desc.put("clusterSwitch", localVolatileConfig.getClusterSwitch().booleanValue());
+    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
       desc.put("zkState", zk.getState());
     }
     desc.put("totalSize(Byte)", JSON.toJSONString(cache.values()).getBytes().length);
     Set<Entry<String, Cache>> entrySet = cache.entrySet();
     for (Entry<String, Cache> el : entrySet) {
-      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
+      desc.put(el.getKey() + "-" + el.getValue().getName(),
           JSON.toJSONString(el.getValue()).getBytes().length);
     }
-//    entrySet.forEach(el->{
-//      desc.put(el.getKey() + "-" + el.getValue().getCacheMeta().getCacheName(),
-//          JSON.toJSONString(el.getValue()).getBytes().length);
-//    });
     return desc.toJSONString();
   }
 
-  /**
-   * @param localCache localCache
-   */
-  public void refresh(Cache localCache) {
-    String check = localCache.check();
-    if (nonNull(check) && !Objects.equals("", check)) {
-      throw new IllegalArgumentException(
-          "【LocalVolatileCache】 - [refresh] paramter error : " + check);
-    }
-    String cacheId = localCache.getCacheMeta().getCacheId();
-    cache.put(cacheId, localCache);
-    if (clusterSwitch) {
-      refreshRemote(localCache);
-    }
-  }
 
-  /**
-   * when zk or base-datasource in error,call this method to insure cache right
-   *
-   * @param localCache localCache
-   */
-  public void refresh4Local(Cache localCache) {
-    String check = localCache.check();
-    if (nonNull(check) && !Objects.equals("", check)) {
-      throw new IllegalArgumentException(
-          "【LocalVolatileCache】 - [refresh] paramter error : " + check);
-    }
-    String cacheId = localCache.getCacheMeta().getCacheId();
-    cache.put(cacheId, localCache);
-  }
-
-
-  /**
-   * @param localConfig
-   */
-  private void refreshRemote(Cache localConfig) {
-    if (isNull(zk)) {
-      LOG.error(
-          "【LocalVolatileCache】 - [refreshRemote] failure ! ZooKeeper Connection is null !");
-      return;
-    }
-    try {
-      Cache.CacheMeta cacheMeta = localConfig.getCacheMeta();
-      String configNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
-
-      Stat stat = zk.exists(generateCacheMetaNodePath() +"/"+ configNodeName, this);
-      if (nonNull(stat)) {
-//        byte[] info = zk.getData(generateCacheMetaNodePath() +"/"+ configNodeName,null,null);
-//        String remoteInfo = new String(info,Charset.forName(CHAR_SET));
-//        LOG.info("Remote info :{}",remoteInfo);
-        String newInfo = JSON.toJSONString(localConfig.getCacheMeta());
-        if(needAuthSec()){
-          zk.addAuthInfo("digest", (authP+":"+authF).getBytes(Charset.forName(CHAR_SET)));
-        }
-        zk.setData(generateCacheMetaNodePath() + "/" + configNodeName, newInfo.getBytes(CHAR_SET),
-            stat.getVersion());
-      } else {
-        LOG.error(
-            "【LocalVolatileCache】 - [refreshRemote] path {} not exist !",
-            this.getParentPath() + "/" + configNodeName);
-      }
-    } catch (KeeperException e) {
-      e.printStackTrace();
-      LOG.error("【LocalVolatileCache】[registerRemote] hanpped KeeperException :", e);
-    } catch (InterruptedException e) {
-      LOG.error("【LocalVolatileCache】[registerRemote] hanpped InterruptedException :",
-          e);
-    } catch (UnsupportedEncodingException e) {
-      LOG.error(
-          "【LocalVolatileCache】[registerRemote] hanpped UnsupportedEncodingException :",
-          e);
-    }
-  }
-
-  /**
-   * @param localCache localConfig
-   */
-  public void remove(Cache localCache) {
-    String cacheId = localCache.getCacheMeta().getCacheId();
-    cache.remove(cacheId);
-    if (clusterSwitch) {
-      removeRemote(localCache);
-    }
-  }
-
-
-  /**
-   * @param localConfig localConfig
-   */
-  private void removeRemote(Cache localConfig) {
-    if (isNull(zk)) {
-      LOG.error(
-          "【LocalVolatileCache】 - [removeRemote] failure ! ZooKeeper Connection is null !");
-      return;
-    }
-    try {
-      Cache.CacheMeta cacheMeta = localConfig.getCacheMeta();
-      String configNodeName = cacheMeta.getCacheId() + "-" + cacheMeta.getCacheName();
-      Stat stat = zk.exists(this.getParentPath() + "/" + configNodeName, false);
-      if (nonNull(stat)) {
-        zk.delete(this.getParentPath() + "/" + configNodeName, stat.getVersion());
-      }
-    } catch (KeeperException e) {
-      e.printStackTrace();
-      LOG.error("【LocalVolatileCache】[removeRemote] hanpped KeeperException :", e);
-    } catch (InterruptedException e) {
-      LOG.error("【LocalVolatileCache】[removeRemote] hanpped InterruptedException :", e);
-    }
-
-
-  }
 
   /**
    * remedial measures for connect ZK failure when LocalVolatileCache loading
@@ -383,15 +379,15 @@ public final class LocalVolatileCache implements Watcher {
    */
   public void resetZooKeeperConnection(String zkURL, Integer sessionTimeOut, Integer retryTimes,
       Long retryTimesGapMillionSecond) {
-    if (!clusterSwitch) {
-      LOG.info("【LocalVolatileCache】 resetZooKeeperConnection refuse ! clusterSwitch is false ");
+    if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
+      LOG.info("【LocalVolatileCache.resetZooKeeperConnection】 execute refuse ! clusterSwitch is false ");
       return;
     }
     if (isNull(zkURL) || Objects.equals("", zkURL)) {
-      zkURL = this.getZkURL();
+      zkURL = localVolatileConfig.getZkServerURL();
     }
     if (isNull(sessionTimeOut)) {
-      sessionTimeOut = this.getSessionTimeOut();
+      sessionTimeOut = localVolatileConfig.getSessionTimeOut().intValue();
     }
     initZKConnection(zkURL, sessionTimeOut);
     Integer leftRetryTimes = retryTimes;
@@ -400,158 +396,88 @@ public final class LocalVolatileCache implements Watcher {
     }
   }
 
-  /**
-   * listen zk change
-   *
-   * @param meta -meta
-   */
-  protected void listenRemove(Cache.CacheMeta meta) {
-    this.cache.remove(meta.getCacheId());
-  }
-
-
-  /**
-   * CacheMeta changed
-   *
-   * @param meta -Cache.CacheMeta
-   */
-  protected void listenRefresh(Cache.CacheMeta meta) {
-    Cache newCache = cachePro.processExpired(meta.getCacheId());
-    if (nonNull(newCache) && nonNull(newCache.getData())) {
-      this.cache.put(meta.getCacheId(), newCache);
-    }
-  }
-
-  public void setParentPath(String parentPath) {
-    this.parentPath = parentPath;
-  }
-
-  private String getParentPath() {
-    return parentPath;
-  }
-
-  String getZkURL() {
-    return zkURL;
-  }
-
-  public void setZkURL(String zkURL) {
-    this.zkURL = zkURL;
-  }
-
-  Integer getSessionTimeOut() {
-    return sessionTimeOut;
-  }
-
-  public void setSessionTimeOut(Integer sessionTimeOut) {
-    this.sessionTimeOut = sessionTimeOut;
-  }
-
-
-  public Boolean getClusterSwitch() {
-    return clusterSwitch;
-  }
-
-  public void setClusterSwitch(Boolean clusterSwitch) {
-    this.clusterSwitch = clusterSwitch;
-  }
-
-  private String generateCacheMetaNodePath() {
-    if ("/".equals(this.getParentPath())) {
-      return this.getParentPath() + this.namespace;
-    }
-    return this.getParentPath() + "/" + this.namespace;
-  }
-
-  /**
-   * when authP and authF have valide value indicate need auth sec
-   * @return true or false
-   */
-  private boolean needAuthSec(){
-    if( Objects.nonNull(authP) && !Objects.equals("",authP) &&
-        Objects.nonNull(authF) && !Objects.equals("",authF)  ){
-      return true;
-    }
-    return false;
-  }
-
-  private List<ACL> generateACL(){
-    List<ACL> aclList = new ArrayList<>();
-    Id id = null;
-    try {
-      id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP+":"+authF));
-      Id readId = Ids.ANYONE_ID_UNSAFE;
-
-      ACL acl = new ACL(ZooDefs.Perms.ALL, id);
-      ACL aclRead = new ACL(Perms.READ, readId);
-      aclList.add(acl);
-      aclList.add(aclRead);
-    } catch (NoSuchAlgorithmException e) {
-      e.printStackTrace();
-    }
-    return aclList;
-  }
-
-
-
 
   @Override
   public void process(WatchedEvent watchedEvent) {
     KeeperState keeperState = watchedEvent.getState();
     try {
-      zk.getChildren(this.generateCacheMetaNodePath(), this);
+      //relistene children node
+      zk.getChildren( localVolatileConfig.zkCacheNodePath(), this);
     } catch (KeeperException e) {
-      LOG.error("【LocalVolatileCache】 [process] happend KeeperException :", e);
+      LOG.error("【LocalVolatileCache.process】 happend KeeperException :", e);
     } catch (InterruptedException e) {
-      LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :", e);
+      LOG.error("【LocalVolatileCache.process】 happend InterruptedException :", e);
     }
     EventType eventType = watchedEvent.getType();
     String path = watchedEvent.getPath();
+    Cache changedCache =null;
     LOG.info("Listen path:【{}】 have changed, change type is {},state is {}", watchedEvent.getPath(),
         watchedEvent.getType(), keeperState);
-    Cache.CacheMeta meta = null;
     if (Objects.nonNull(path) && !Objects.equals("", path) && path
-        .startsWith(this.generateCacheMetaNodePath() + "/")) {
+        .startsWith(localVolatileConfig.zkCacheNodePath() + "/")) {
       String newInfo = "";
       try {
-        newInfo = new String(this.zk.getData(path, this, null), Charset.forName("utf-8"));
-        meta = JSON.parseObject(newInfo, Cache.CacheMeta.class);
+        newInfo = new String(this.zk.getData(path, this, null), Charset.forName(LVCCConstant.CHAR_SET));
+        changedCache = JSON.parseObject(newInfo, Cache.class);
       } catch (KeeperException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend KeeperException :", e);
+        LOG.error("【LocalVolatileCache.process】 happend KeeperException :", e);
       } catch (InterruptedException e) {
-        LOG.error("【LocalVolatileCache】 [process] happend InterruptedException :", e);
+        LOG.error("【LocalVolatileCache.process】 happend InterruptedException :", e);
       }
       LOG.info("new info is :{}", newInfo);
     }
 
     switch (eventType) {
       case None:
+        LOG.info("【LocalVolatileCache.process】 - eventType:None ...");
         if (keeperState == KeeperState.Expired) {
-          this.initZKConnection(this.zkURL, this.sessionTimeOut);
+          this.initZKConnection(localVolatileConfig.getZkServerURL(), localVolatileConfig.getSessionTimeOut().intValue());
         }
         break;
       case NodeDataChanged:
-        listenRefresh(meta);
+        LOG.info("【LocalVolatileCache.process】 - eventType:NodeDataChanged ...");
+        if( Objects.nonNull(changedCache) ){
+          reload(changedCache.getId());
+        }
         break;
       case NodeCreated:
-        System.out.println("监听到变化：" + path + "---" + eventType);
-        LOG.info(
-            "Listen " + watchedEvent.getPath() + " have changed, change type is {},state is {}",
-            watchedEvent.getType(), keeperState);
-        get(meta.getCacheId());
+        LOG.info("【LocalVolatileCache.process】 - eventType:NodeCreated ...");
+        if( Objects.nonNull(changedCache) ){
+          get(changedCache.getId());
+        }
         break;
       case NodeDeleted:
-        listenRemove(meta);
+        LOG.info("【LocalVolatileCache.process】 - eventType:NodeDeleted ...");
+        if( Objects.nonNull(changedCache) ){
+          remove(get(changedCache.getId()));
+        }
         break;
       case NodeChildrenChanged:
-        // just when add a new child node then do next is nessary
-        get(meta.getCacheId());
+        LOG.info("【LocalVolatileCache.process】 - eventType:NodeChildrenChanged ... do nothing");
         break;
       default:
-        System.out.println("不知道什么类型的监控");
+        LOG.info("【LocalVolatileCache.process】 - eventType:unknow.");
         break;
 
     }
 
+  }
+
+  private void zkCheck(String methodDesc) {
+    if (isNull(zk)) {
+      LOG.error(
+          "【{}】 execute failure ! ZooKeeper Connection is null !", methodDesc);
+      throw new ZBJException(
+          String.format("【%s】 execute failure ! Zookeeper Connection is null .", methodDesc)
+      );
+    }
+  }
+  private void cacheProcessorCheck(String methodDesc){
+    if( isNull(cacheProcessor) ){
+      if( Objects.isNull(cacheProcessor) ){
+        throw new ZBJException(String.format("【%s】 -cacheProcessor can not be null !",methodDesc));
+      }
+    }
   }
 
 }

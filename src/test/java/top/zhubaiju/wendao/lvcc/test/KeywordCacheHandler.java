@@ -1,7 +1,7 @@
 package top.zhubaiju.wendao.lvcc.test;
 
 import top.zhubaiju.lvcc.Cache;
-import top.zhubaiju.lvcc.LocalVolatileCacheProcessor;
+import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
 
 public class KeywordCacheHandler implements LocalVolatileCacheProcessor {
 

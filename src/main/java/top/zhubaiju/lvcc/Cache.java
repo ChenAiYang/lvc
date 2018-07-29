@@ -1,93 +1,67 @@
 package top.zhubaiju.lvcc;
 
-import java.util.Objects;
+import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
- * @author 人山 create at 2017/4/14 15:13
+ * @author iyoung chen create at 2017/4/14 15:13
  */
 @SuppressWarnings("unchecked")
 public class Cache<T> {
-
-  private CacheMeta cacheMeta;
-
+  private String id;
+  private String name;
+  private String desc;
   private T data;
+  private LocalDateTime versionTimestamp;
 
-  public CacheMeta getCacheMeta() {
-    return cacheMeta;
+  protected Cache(){
+
+  }
+  protected Cache(String cacheId,String cacheName,String cacheDesc,T data){
+    this.id = cacheId;
+    this.name = cacheName;
+    this.desc = cacheDesc;
+    this.data = data;
+    this.versionTimestamp = LocalDateTime.now();
   }
 
-  public void setCacheMeta(CacheMeta cacheMeta) {
-    this.cacheMeta = cacheMeta;
+  public String getId() {
+    return id;
+  }
+
+  public void setId(String id) {
+    this.id = id;
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+  }
+
+  public String getDesc() {
+    return desc;
+  }
+
+  public void setDesc(String desc) {
+    this.desc = desc;
   }
 
   public T getData() {
     return data;
   }
 
-  void setData(T data) {
+  public void setData(T data) {
     this.data = data;
   }
 
-  public static <T> Cache getInstant(String cacheId,String cacheName,T data){
-    String desc = "";
-    return getInstant(cacheId,cacheName,desc,data);
-  }
-  public static <T> Cache getInstant(String cacheId,String cacheName,String desc,T data){
-    Cache cache = new Cache();
-    cache.setData(data);
-    Cache.CacheMeta meta = new CacheMeta();
-    meta.setCacheId(cacheId);
-    meta.setCacheName(cacheName);
-    meta.setCacheDesc(desc);
-    cache.setCacheMeta(meta);
-    return cache;
+  public LocalDateTime getVersionTimestamp() {
+    return versionTimestamp;
   }
 
-  public String check(){
-    if(Objects.isNull( this.getCacheMeta().getCacheId() )
-        || Objects.equals("",this.getCacheMeta().getCacheId())){
-      return "cacheId can not be null";
-    }
-    if(Objects.isNull( this.getCacheMeta().getCacheName() )
-        || Objects.equals("",this.getCacheMeta().getCacheName())){
-      return "cacheName can not be null";
-    }
-    if( Objects.isNull(this.getData()) ){
-      return "config data can not be null";
-    }
-    return "";
+  public void setVersionTimestamp(LocalDateTime versionTimestamp) {
+    this.versionTimestamp = versionTimestamp;
   }
-
-  static class CacheMeta{
-    private String cacheId;
-    private String cacheName;
-    private String cacheDesc="";
-    CacheMeta(){}
-
-    public String getCacheId() {
-      return cacheId;
-    }
-
-    public void setCacheId(String cacheId) {
-      this.cacheId = cacheId;
-    }
-
-    public String getCacheName() {
-      return cacheName;
-    }
-
-    public void setCacheName(String cacheName) {
-      this.cacheName = cacheName;
-    }
-
-    public String getCacheDesc() {
-      return cacheDesc;
-    }
-
-    public void setCacheDesc(String cacheDesc) {
-      this.cacheDesc = cacheDesc;
-    }
-
-  }
-
 }

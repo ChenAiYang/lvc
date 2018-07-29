@@ -1,11 +1,11 @@
-package top.zhubaiju.lvcc;
+package top.zhubaiju.lvcc.support;
 
 import org.apache.zookeeper.AsyncCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * @author 人山 create at 2017/4/14 15:13
+ * @author iyoung chen create at 2017/4/14 15:13
  */
 public class CreateNodeCallBack implements AsyncCallback.StringCallback {
 

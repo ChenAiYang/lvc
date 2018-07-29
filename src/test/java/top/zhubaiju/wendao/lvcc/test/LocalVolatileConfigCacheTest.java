@@ -3,13 +3,11 @@ package top.zhubaiju.wendao.lvcc.test;
 import com.alibaba.fastjson.JSON;
 import java.util.concurrent.locks.LockSupport;
 import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
 import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
 /**
- * @author 人山 create at 2018/4/16 0:56
+ * @author iyoung chen create at 2018/4/16 0:56
  */
 
 
