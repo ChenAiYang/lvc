@@ -1,5 +1,6 @@
 package top.zhubaiju.lvcc.support;
 
+import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,12 +11,16 @@ import org.apache.zookeeper.ZooDefs.Perms;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import top.zhubaiju.common.LVCCConstant;
 
 /**
  * @author iyoung chen
  */
 public class LocalVolatileConfig {
+
+  Logger LOG = LoggerFactory.getLogger(LocalVolatileConfig.class);
 
   /**
    * ZK config : the zk server url
@@ -125,16 +130,17 @@ public class LocalVolatileConfig {
    * @return true or false
    */
   public boolean needAuthSec() {
-    if (Objects.nonNull(authP) && !Objects.equals("", authP) &&
-        Objects.nonNull(authF) && !Objects.equals("", authF)) {
-      return true;
+    if (Objects.isNull(authP) || Objects.equals("", authP)) {
+      return false;
     }
-    return false;
+    if (Objects.isNull(authF) || Objects.equals("", authF)) {
+      return false;
+    }
+    return true;
   }
 
   /**
    * caculate cache path like : /[zkPath]/[namespace]-[moudle]
-   * @return
    */
   public String zkCacheNodePath() {
     StringBuilder sbd = new StringBuilder();
@@ -150,18 +156,34 @@ public class LocalVolatileConfig {
   }
 
   public List<ACL> generateACL() {
+    if (!needAuthSec()) {
+      return Ids.OPEN_ACL_UNSAFE;
+    }
     List<ACL> aclList = new ArrayList<>();
-
     try {
-      Id id = new Id("digest", DigestAuthenticationProvider.generateDigest(authP + ":" + authF));
+      Id digestId = new Id("digest", DigestAuthenticationProvider.generateDigest(authP + ":" + authF));
       Id readId = Ids.ANYONE_ID_UNSAFE;
-      ACL acl = new ACL(ZooDefs.Perms.ALL, id);
+      ACL aclDigest = new ACL(ZooDefs.Perms.ALL, digestId);
       ACL aclRead = new ACL(Perms.READ, readId);
-      aclList.add(acl);
+      aclList.add(aclDigest);
       aclList.add(aclRead);
     } catch (NoSuchAlgorithmException e) {
-      e.printStackTrace();
+      LOG.error("【LocalVolatileConfig.generateACL】 happend eception :",e);
+      aclList = Ids.READ_ACL_UNSAFE;
     }
     return aclList;
   }
+
+  public byte[] auth(){
+    if( needAuthSec() ){
+      StringBuilder sbd = new StringBuilder();
+      sbd.append(authP);
+      sbd.append(":");
+      sbd.append(authF);
+      return sbd.toString().getBytes(Charset.forName(LVCCConstant.CHAR_SET));
+    }
+    return null;
+  }
+
+
 }

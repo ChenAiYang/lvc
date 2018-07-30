@@ -83,12 +83,11 @@ public final class LocalVolatileCache implements Watcher {
         //when connect zk, add watcher to notify child node add
         zk = new ZooKeeper(zkServerUrl,
             sessionTimeOut, this);
-        List<ACL> aclList = Ids.OPEN_ACL_UNSAFE;
-        if (localVolatileConfig.needAuthSec()) {
-          aclList = localVolatileConfig.generateACL();
+        List<ACL> aclList = localVolatileConfig.generateACL();
+        if( localVolatileConfig.needAuthSec() ){
+          zk.addAuthInfo("digest",localVolatileConfig.auth());
         }
         initZKCacheNodePath(zk, aclList);
-
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
       }
@@ -180,12 +179,6 @@ public final class LocalVolatileCache implements Watcher {
         String newInfo = JSON.toJSONStringWithDateFormat(newLocalCache,"yyyy-MM-dd HH:mm:ss");
         JSONObject jo = JSON.parseObject(newInfo);
         jo.remove("data");
-        if (localVolatileConfig.needAuthSec()) {
-          //security mode
-          zk.addAuthInfo("digest",
-              (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
-                  .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
-        }
         zk.setData(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, (jo.toJSONString()).getBytes(LVCCConstant.CHAR_SET),
             stat.getVersion());
         LOG.info("【LocalVolatileCache.modifyRemoteCache】 - modify remote success.");
@@ -306,12 +299,6 @@ public final class LocalVolatileCache implements Watcher {
             JSON.toJSONString(localCache));
         return;
       }
-      if (localVolatileConfig.needAuthSec()) {
-        //security mode
-        zk.addAuthInfo("digest",
-            (localVolatileConfig.getAuthP() + ":" + localVolatileConfig.getAuthP())
-                .getBytes(Charset.forName(LVCCConstant.CHAR_SET)));
-      }
       zk.delete(localVolatileConfig.zkCacheNodePath() + "/" + configNodeName, stat.getVersion());
       LOG.info("【LocalVolatileCache.removeRemote】 Cache【{}】delete success.",
           JSON.toJSONString(localCache));
@@ -411,60 +398,79 @@ public final class LocalVolatileCache implements Watcher {
       LOG.error("【LocalVolatileCache.process】 happend InterruptedException :", e);
     }
     EventType eventType = watchedEvent.getType();
+    if( eventType == EventType.None ){
+      LOG.info("【LocalVolatileCache.process】 listen event type is None , WatchedEvent.getState is :【{}】,ignore this listen event.",keeperState);
+      return;
+    }
     String path = watchedEvent.getPath();
-    Cache changedCache =null;
-    LOG.info("Listen path:【{}】 have changed, change type is {},state is {}", watchedEvent.getPath(),
-        watchedEvent.getType(), keeperState);
+    String changedCacheId = null;
+    String changedCacheName = null;
     if (Objects.nonNull(path) && !Objects.equals("", path) && path
         .startsWith(localVolatileConfig.zkCacheNodePath() + "/")) {
-      String newInfo = "";
-      try {
-        newInfo = new String(this.zk.getData(path, this, null), Charset.forName(LVCCConstant.CHAR_SET));
-        changedCache = JSON.parseObject(newInfo, Cache.class);
-      } catch (KeeperException e) {
-        LOG.error("【LocalVolatileCache.process】 happend KeeperException :", e);
-      } catch (InterruptedException e) {
-        LOG.error("【LocalVolatileCache.process】 happend InterruptedException :", e);
+      String[] pathElArray = path.split("/");
+      if( pathElArray.length > 1 ){
+        String cacheNodeName =  pathElArray[pathElArray.length-1];
+        changedCacheId = cacheNodeName.split("-")[0];
+        changedCacheName = cacheNodeName.substring(changedCacheId.length()+1);
       }
-      LOG.info("new info is :{}", newInfo);
     }
 
     switch (eventType) {
       case None:
-        LOG.info("【LocalVolatileCache.process】 - eventType:None ...");
         if (keeperState == KeeperState.Expired) {
+          LOG.info("【LocalVolatileCache.process】 - connection is expired . try re-init zk client.");
           this.initZKConnection(localVolatileConfig.getZkServerURL(), localVolatileConfig.getSessionTimeOut().intValue());
         }
         break;
       case NodeDataChanged:
-        LOG.info("【LocalVolatileCache.process】 - eventType:NodeDataChanged ...");
-        if( Objects.nonNull(changedCache) ){
-          reload(changedCache.getId());
+        try {
+          String newInfo = new String(this.zk.getData(path, this, null), Charset.forName(LVCCConstant.CHAR_SET));
+          LOG.info("【LocalVolatileCache.process】 - eventType:【NodeDataChanged】.Changed node path is:【{}】,new info is :【{}】 ",path,newInfo);
+        } catch (KeeperException e) {
+          LOG.error("【LocalVolatileCache.process】-NodeDataChanged,when get new info from zk happend KeeperException :",e);
+        } catch (InterruptedException e) {
+          LOG.error("【LocalVolatileCache.process】-NodeDataChanged,when get new info from zk happend InterruptedException :",e);
+        }
+        if( Objects.nonNull(changedCacheId) && !Objects.equals("",changedCacheId) ){
+          reload(changedCacheId);
         }
         break;
       case NodeCreated:
-        LOG.info("【LocalVolatileCache.process】 - eventType:NodeCreated ...");
-        if( Objects.nonNull(changedCache) ){
-          get(changedCache.getId());
+        try {
+          String createdInfo = new String(this.zk.getData(path, this, null), Charset.forName(LVCCConstant.CHAR_SET));
+          LOG.info("【LocalVolatileCache.process】 - eventType:【NodeCreated】.Created node path is:【{}】,created info is :【{}】 ",path,createdInfo);
+          if( Objects.nonNull(changedCacheId) && !Objects.equals("",changedCacheId) ){
+            get(changedCacheId);
+          }
+        } catch (KeeperException e) {
+          LOG.error("【LocalVolatileCache.process】-NodeCreated,when get created info from zk happend KeeperException :",e);
+        } catch (InterruptedException e) {
+          LOG.error("【LocalVolatileCache.process】-NodeCreated,when get created info from zk happend InterruptedException :",e);
         }
         break;
       case NodeDeleted:
-        LOG.info("【LocalVolatileCache.process】 - eventType:NodeDeleted ...");
-        if( Objects.nonNull(changedCache) ){
-          remove(get(changedCache.getId()));
+        LOG.info("【LocalVolatileCache.process】 - eventType:【NodeDeleted】.Deleted node path is :【{}】",path);
+        if( Objects.nonNull(changedCacheId) && !Objects.equals("",changedCacheId)
+            && Objects.nonNull(changedCacheName) && !Objects.equals("",changedCacheName) ){
+          Cache temp = new Cache();
+          temp.setId(changedCacheId);
+          temp.setName(changedCacheName);
+          remove(temp);
         }
         break;
       case NodeChildrenChanged:
-        LOG.info("【LocalVolatileCache.process】 - eventType:NodeChildrenChanged ... do nothing");
+        LOG.info("【LocalVolatileCache.process】 - eventType:【NodeChildrenChanged】.new created children node path is :【{}】. Just do nothing",path);
         break;
       default:
         LOG.info("【LocalVolatileCache.process】 - eventType:unknow.");
         break;
-
     }
-
   }
 
+  /**
+   * check zk-client
+   * @param methodDesc
+   */
   private void zkCheck(String methodDesc) {
     if (isNull(zk)) {
       LOG.error(
@@ -474,6 +480,11 @@ public final class LocalVolatileCache implements Watcher {
       );
     }
   }
+
+  /**
+   * check LocalVolatileCacheProcessor can not be null
+   * @param methodDesc
+   */
   private void cacheProcessorCheck(String methodDesc){
     if( isNull(cacheProcessor) ){
       if( Objects.isNull(cacheProcessor) ){
