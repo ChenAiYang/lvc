@@ -17,7 +17,7 @@ public class DemoGet {
 
   private static void get() {
     LocalVolatileCache lvc = Demo.init();
-    Cache cache = lvc.get("1");
+    Cache cache = lvc.get("3");
     Demo.stay(lvc);
   }
 

@@ -54,6 +54,20 @@ public class LocalVolatileConfig {
   private Long sessionTimeOut = 30000L;
 
   /**
+   * if set false, LVCC will load all cache which LVCC-REMOTE(ZK) have managed when init. otherwise, it just load when excute get() method .
+   */
+  private Boolean lazyLoad = true;
+
+  /**
+   * <p>
+   * if set false, LVCC in application instant-A will not auto manage a new cache named cache-21 <br/>
+   * which application instant-B commit, LVCC manage cahce-21 only happend application instant-A call get() method <br/>
+   * </p>
+   *
+   */
+  private Boolean sensitiveAll = true;
+
+  /**
    * If application have more than one instant ,then you need set <code>
    * clusterSwitch
    * </code> true
@@ -122,6 +136,22 @@ public class LocalVolatileConfig {
 
   public void setClusterSwitch(Boolean clusterSwitch) {
     this.clusterSwitch = clusterSwitch;
+  }
+
+  public Boolean getLazyLoad() {
+    return lazyLoad;
+  }
+
+  public void setLazyLoad(Boolean lazyLoad) {
+    this.lazyLoad = lazyLoad;
+  }
+
+  public Boolean getSensitiveAll() {
+    return sensitiveAll;
+  }
+
+  public void setSensitiveAll(Boolean sensitiveAll) {
+    this.sensitiveAll = sensitiveAll;
   }
 
   /**

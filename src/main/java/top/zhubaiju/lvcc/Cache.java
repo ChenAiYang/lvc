@@ -22,7 +22,6 @@ public class Cache<T> {
     this.name = cacheName;
     this.desc = cacheDesc;
     this.data = data;
-    this.versionTimestamp = LocalDateTime.now();
   }
 
   public String getId() {

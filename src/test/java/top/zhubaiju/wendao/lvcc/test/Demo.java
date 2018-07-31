@@ -26,6 +26,7 @@ public class Demo {
     config.setAuthF("aaa");
     config.setAuthP("bbb");
     config.setClusterSwitch(true);
+    config.setLazyLoad(false);
     config.setModule("test");
     config.setNamespace("lvcc");
     config.setSessionTimeOut(30000L);
@@ -43,7 +44,7 @@ public class Demo {
     @Override
     public Cache processExpired(String expiredCacheID) {
       Cache c = CacheBuilder.getInstant()
-          .build(expiredCacheID, "create-out-time", "desc", "data:test");
+          .build(expiredCacheID, "create-time", "desc", "data:test");
       return c;
     }
 
@@ -73,7 +74,7 @@ public class Demo {
         Cache c = localVolatileCache.get("2");
         System.out.println(JSON.toJSONString(c));
         LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 60*3);
-        localVolatileCache.broadcastCacheChange(c);
+        localVolatileCache.broadcastCacheChange(c.getId());
       }
 
     }
