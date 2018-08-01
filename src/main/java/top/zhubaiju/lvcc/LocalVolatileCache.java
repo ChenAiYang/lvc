@@ -133,7 +133,7 @@ public final class LocalVolatileCache implements Watcher {
       LOG.error("【LocalVolatileCache.initZKCacheNodePath】 happend UnsupportedEncodingException :",
           e);
     }
-    if( !localVolatileConfig.getLazyLoad() ){
+    if( localVolatileConfig.getClusterSwitch() && !localVolatileConfig.getLazyLoad() ){
       loadAllExistCache();
     }
   }
@@ -461,6 +461,26 @@ public final class LocalVolatileCache implements Watcher {
     getAllExistCacheNode();
     EventType eventType = watchedEvent.getType();
     if (eventType == EventType.None) {
+      switch (keeperState){
+        case Expired:
+          /**
+           * session expired .
+           *  - switch clusterMode false;
+           *  - sync try reset zk client with default strategy
+           *  - notify application
+           */
+          break;
+        case Disconnected:
+          /**
+           * Disconnected .
+           *  - switch clusterMode false;
+           *  - sync try reset zk client with default strategy
+           *  - notify application
+           */
+          break;
+          default:
+      }
+
       LOG.info(
           "【LocalVolatileCache.process】 listen event type is None , WatchedEvent.getState is :【{}】,ignore this listen event.",
           keeperState);
@@ -542,7 +562,7 @@ public final class LocalVolatileCache implements Watcher {
         }
         break;
       case NodeChildrenChanged:
-        if( localVolatileConfig.getSensitiveAll() ){
+        if( localVolatileConfig.getClusterSwitch() && localVolatileConfig.getSensitiveAll() ){
           List<String> childNode = getAllExistCacheNode();
           LOG.info(
               "【LocalVolatileCache.process】 - eventType:【NodeChildrenChanged】.parent path is :【{}】.Current child node is :【{}】.Ready to manage.",

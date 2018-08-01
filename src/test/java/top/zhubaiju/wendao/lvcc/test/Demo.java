@@ -29,7 +29,7 @@ public class Demo {
     config.setLazyLoad(false);
     config.setModule("test");
     config.setNamespace("lvcc");
-    config.setSessionTimeOut(30000L);
+    config.setSessionTimeOut(5000L);
     config.setZkPath("/");
     config.setZkServerURL("127.0.0.1:2181");
     return config;
