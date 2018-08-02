@@ -80,6 +80,13 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
+   * you may call this method in
+   */
+  public void reInit(){
+
+  }
+
+  /**
    * when clusterSwitch true,then  init ZK
    */
   private void initZKConnection(String zkServerUrl, Integer sessionTimeOut) {
@@ -181,7 +188,7 @@ public final class LocalVolatileCache implements Watcher {
 
 
   /**
-   * notify all application instant cache changed
+   * notify all application instant cache changed.at the same time, this method will set watcher for current node
    *
    * @param localCacheId localCacheId
    */
@@ -204,7 +211,7 @@ public final class LocalVolatileCache implements Watcher {
         cache.put(newLocalCache.getId(), newLocalCache);
       } else {
         LOG.warn(
-            "【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 do not exists.You may call 【LocalVolatileCache.commit()】 first.",
+            "【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 do not exists.You may call 【LocalVolatileCache.get()】 first.",
             localCacheId);
         return;
       }
@@ -465,10 +472,10 @@ public final class LocalVolatileCache implements Watcher {
         case Expired:
           /**
            * session expired .
-           *  - switch clusterMode false;
-           *  - sync try reset zk client with default strategy
-           *  - notify application
+           *  - get all exist node(set watcher for all children node)
+           *  - broadcast all node is expired
            */
+          processSessionExpired();
           break;
         case Disconnected:
           /**
@@ -602,6 +609,19 @@ public final class LocalVolatileCache implements Watcher {
     if (isNull(cacheProcessor)) {
       if (Objects.isNull(cacheProcessor)) {
         throw new ZBJException(String.format("【%s】 -cacheProcessor can not be null !", methodDesc));
+      }
+    }
+  }
+
+  /**
+   * exception : session is expired .<br/>
+   * notifycation all cache node expired
+   */
+  private void processSessionExpired(){
+    if( localVolatileConfig.getClusterSwitch() ){
+      List<String> childCacheNode = getAllExistCacheNode();
+      for (int i = 0; i < childCacheNode.size(); i++) {
+        broadcastCacheChange(childCacheNode.get(i));
       }
     }
   }
