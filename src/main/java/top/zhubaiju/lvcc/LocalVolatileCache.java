@@ -34,7 +34,6 @@ import top.zhubaiju.common.LVCCConstant;
 import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.support.CreateNodeCallBack;
 import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
-import top.zhubaiju.lvcc.support.LocalVolatileConfig;
 
 /**
  * @author iyoung chen create at 2017/4/14 15:13
@@ -68,7 +67,7 @@ public final class LocalVolatileCache implements Watcher {
     this.cacheProcessor = cacheProcessor;
   }
 
-  public void init() {
+  public void init() throws ZBJException {
     if (Objects.isNull(cacheProcessor)) {
       throw new ZBJException("【Illegal LocalVolatileCache】 -cacheProcessor can not be null !");
     }
@@ -80,17 +79,25 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * you may call this method in
+   * you may call this method when lvccExceptionNotifycation happend.
+   * @throws IOException re-init  failure
    */
-  public void reInit(){
-
+  public void reInit() throws IOException, KeeperException, InterruptedException, ZBJException {
+    if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
+      LOG.info(
+          "【LocalVolatileCache.reInit】 execute refuse ! clusterSwitch is false ");
+      return;
+    }
+    //if zk re-create success,then listen
+    processDisConnect();
+    localVolatileConfig.innerClusterSwitch=true;
   }
 
   /**
    * when clusterSwitch true,then  init ZK
    */
   private void initZKConnection(String zkServerUrl, Integer sessionTimeOut) {
-    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+    if (localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       try {
         //when connect zk, add watcher to notify child node add
         zk = new ZooKeeper(zkServerUrl,
@@ -102,6 +109,8 @@ public final class LocalVolatileCache implements Watcher {
         initZKCacheNodePath(zk, aclList);
       } catch (IOException e) {
         LOG.error("【LocalVolatileCache】 [initZKConnection] Happend IOExcepiton  :", e);
+      } catch (ZBJException e) {
+        LOG.error("【LocalVolatileCache】 [initZKConnection] Happend ZBJException  :", e);
       }
     }
   }
@@ -110,7 +119,7 @@ public final class LocalVolatileCache implements Watcher {
    * Init zk cache-node path,after init success, set listener for children node <br/>
    * idempotent method
    */
-  private void initZKCacheNodePath(ZooKeeper zk, List<ACL> aclList) {
+  private void initZKCacheNodePath(ZooKeeper zk, List<ACL> aclList) throws ZBJException {
     String currentCacheNodePath = localVolatileConfig.zkCacheNodePath();
     String currentCacheNodeName =
         localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule();
@@ -140,12 +149,12 @@ public final class LocalVolatileCache implements Watcher {
       LOG.error("【LocalVolatileCache.initZKCacheNodePath】 happend UnsupportedEncodingException :",
           e);
     }
-    if( localVolatileConfig.getClusterSwitch() && !localVolatileConfig.getLazyLoad() ){
+    if( localVolatileConfig.getInnerClusterSwitch() && !localVolatileConfig.getLazyLoad() ){
       loadAllExistCache();
     }
   }
 
-  private void loadAllExistCache(){
+  private void loadAllExistCache() throws ZBJException {
     List<String> allExistCacheNode = getAllExistCacheNode();
     for (String cacheNode: allExistCacheNode ) {
       get(cacheNode);
@@ -156,15 +165,17 @@ public final class LocalVolatileCache implements Watcher {
    * get all exists cache node ,at the same time, listen child add/delete
    * @return
    */
-  private List<String> getAllExistCacheNode(){
-    zkCheck("LocalVolatileCache.getAllExistCacheNode");
+  private List<String> getAllExistCacheNode() {
     try {
+      zkCheck("LocalVolatileCache.getAllExistCacheNode");
       List<String> allCacheNode = zk.getChildren(localVolatileConfig.zkCacheNodePath(),this);
       return allCacheNode;
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache.getAllExistCacheNode】 execute happend KeeperException",e);
     } catch (InterruptedException e) {
       LOG.error("【LocalVolatileCache.getAllExistCacheNode】 execute happend InterruptedException",e);
+    } catch (ZBJException e) {
+      LOG.error("【LocalVolatileCache.getAllExistCacheNode】 execute happend ZBJException",e);
     }
     return new ArrayList<>();
   }
@@ -176,7 +187,12 @@ public final class LocalVolatileCache implements Watcher {
    * @param reloadDateTime  reload time
    */
   private void reload(String cacheId,LocalDateTime reloadDateTime) {
-    cacheProcessorCheck("LocalVolatileCache.reload");
+    try {
+      cacheProcessorCheck("LocalVolatileCache.reload");
+    } catch (ZBJException e) {
+      LOG.error("【LocalVolatileCache.reload】- cache id :【{}】 ZBJException :", cacheId,e);
+      return;
+    }
     Cache newLocalCache = cacheProcessor.processExpired(cacheId);
     if (Objects.isNull(newLocalCache)) {
       LOG.error("【LocalVolatileCache.reload】- cache id :【{}】 can not load new cache .", cacheId);
@@ -192,7 +208,7 @@ public final class LocalVolatileCache implements Watcher {
    *
    * @param localCacheId localCacheId
    */
-  public void broadcastCacheChange(String localCacheId) {
+  public void broadcastCacheChange(String localCacheId) throws ZBJException {
     if (Strings.isBlank(localCacheId)) {
       LOG.warn("【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 do not exists.",
           localCacheId);
@@ -206,7 +222,7 @@ public final class LocalVolatileCache implements Watcher {
       return;
     }
 
-    if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
+    if (!localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       if (cache.contains(localCacheId)) {
         cache.put(newLocalCache.getId(), newLocalCache);
       } else {
@@ -227,7 +243,7 @@ public final class LocalVolatileCache implements Watcher {
    *
    * @param newLocalCache newLocalCache
    */
-  private void modifyRemoteCache(Cache newLocalCache) {
+  private void modifyRemoteCache(Cache newLocalCache) throws ZBJException {
     zkCheck("LocalVolatileCache.modifyRemoteCache");
     try {
       String currentCacheNodePath =
@@ -278,7 +294,7 @@ public final class LocalVolatileCache implements Watcher {
     }
     String cacheId = localCache.getId();
 
-    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+    if (localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       commitRemote(localCache);
     }
     if (cache.contains(cacheId)) {
@@ -293,9 +309,9 @@ public final class LocalVolatileCache implements Watcher {
    *
    * @param localCache - localCache
    */
-  private void commitRemote(Cache localCache) throws ZBJException {
-    zkCheck("LocalVolatileCache.commitRemote");
+  private void commitRemote(Cache localCache) {
     try {
+      zkCheck("LocalVolatileCache.commitRemote");
       String currentCacheNodePath =
           localVolatileConfig.zkCacheNodePath() + "/" + localCache.getId();
 
@@ -331,12 +347,10 @@ public final class LocalVolatileCache implements Watcher {
       }
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache.commitRemote】 hanpped KeeperException :", e);
-      throw new ZBJException(
-          "【LocalVolatileCache.commitRemote】 commit failure ! - KeeperException ");
     } catch (InterruptedException e) {
       LOG.error("【LocalVolatileCache.commitRemote】 hanpped InterruptedException :", e);
-      throw new ZBJException(
-          "【LocalVolatileCache.commitRemote】 commit failure ! - InterruptedException ");
+    } catch (ZBJException e) {
+      LOG.error("【LocalVolatileCache.commitRemote】 hanpped ZBJException :", e);
     }
   }
 
@@ -349,7 +363,7 @@ public final class LocalVolatileCache implements Watcher {
       LOG.warn("【LocalVolatileCache.remove】 - try remove a cache which is null  ! ");
       return;
     }
-    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+    if (localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       removeRemote(localCache);
     }
     cache.remove(localCache.getId());
@@ -360,8 +374,8 @@ public final class LocalVolatileCache implements Watcher {
    * idempotent method
    */
   public void removeRemote(Cache localCache) {
-    zkCheck("LocalVolatileCache.removeRemote");
     try {
+      zkCheck("LocalVolatileCache.removeRemote");
       String currentCacheNodtPath =
           localVolatileConfig.zkCacheNodePath() + "/" + localCache.getId();
       Stat stat = zk.exists(currentCacheNodtPath, true);
@@ -376,12 +390,10 @@ public final class LocalVolatileCache implements Watcher {
           JSON.toJSONStringWithDateFormat(localCache, LVCCConstant.DEFAULT_DATE_FORMATTER));
     } catch (KeeperException e) {
       LOG.error("【LocalVolatileCache.removeRemote】execute hanpped KeeperException :", e);
-      throw new ZBJException(
-          "【LocalVolatileCache.removeRemote】 execute failure ! - KeeperException ");
     } catch (InterruptedException e) {
       LOG.error("【LocalVolatileCache.removeRemote】execute hanpped InterruptedException :", e);
-      throw new ZBJException(
-          "【LocalVolatileCache.removeRemote】 execute failure ! - KeeperException ");
+    } catch (ZBJException e) {
+      LOG.error("【LocalVolatileCache.removeRemote】execute hanpped ZBJException :", e);
     }
   }
 
@@ -395,10 +407,16 @@ public final class LocalVolatileCache implements Watcher {
   public Cache get(String cacheId) {
     Cache localCache = this.cache.get(cacheId);
     if (Objects.isNull(localCache)) {
-      cacheProcessorCheck("LocalVolatileCache.get");
+      try {
+        cacheProcessorCheck("LocalVolatileCache.get");
+      } catch (ZBJException e) {
+        LOG.error("【LocalVolatileCache.get】 happend ZBJException:",e);
+        LOG.info(
+            "");
+      }
       localCache = cacheProcessor.processNotExist(cacheId);
       if (nonNull(localCache)) {
-        //TODO 此处是否需要考虑使用异步方式完成添加
+        //todo sync mode to commit ???
         commit(localCache);
       }
     }
@@ -412,8 +430,8 @@ public final class LocalVolatileCache implements Watcher {
    */
   public String healthInfo() {
     JSONObject desc = new JSONObject();
-    desc.put("clusterSwitch", localVolatileConfig.getClusterSwitch().booleanValue());
-    if (localVolatileConfig.getClusterSwitch().booleanValue()) {
+    desc.put("clusterSwitch", localVolatileConfig.getInnerClusterSwitch().booleanValue());
+    if (localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       desc.put("zkState", zk.getState());
     }
     desc.put("totalSize(Byte)", JSON.toJSONString(cache.values()).getBytes().length);
@@ -442,7 +460,7 @@ public final class LocalVolatileCache implements Watcher {
    */
   public void resetZooKeeperConnection(String zkURL, Integer sessionTimeOut, Integer retryTimes,
       Long retryTimesGapMillionSecond) {
-    if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
+    if (!localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       LOG.info(
           "【LocalVolatileCache.resetZooKeeperConnection】 execute refuse ! clusterSwitch is false ");
       return;
@@ -470,6 +488,7 @@ public final class LocalVolatileCache implements Watcher {
     if (eventType == EventType.None) {
       switch (keeperState){
         case Expired:
+          LOG.error("【LocalVolatileCache.process】 listen session expired :【{}】. ready call processSessionExpired().");
           /**
            * session expired .
            *  - get all exist node(set watcher for all children node)
@@ -478,14 +497,17 @@ public final class LocalVolatileCache implements Watcher {
           processSessionExpired();
           break;
         case Disconnected:
+          LOG.error("【LocalVolatileCache.process】 listen connection dis...");
           /**
            * Disconnected .
            *  - switch clusterMode false;
            *  - sync try reset zk client with default strategy
            *  - notify application
            */
+          localVolatileConfig.innerClusterSwitch = false;
+          cacheProcessor.lvccExceptionNotifycation(this);
           break;
-          default:
+          default:break;
       }
 
       LOG.info(
@@ -569,7 +591,7 @@ public final class LocalVolatileCache implements Watcher {
         }
         break;
       case NodeChildrenChanged:
-        if( localVolatileConfig.getClusterSwitch() && localVolatileConfig.getSensitiveAll() ){
+        if( localVolatileConfig.getInnerClusterSwitch() && localVolatileConfig.getSensitiveAll() ){
           List<String> childNode = getAllExistCacheNode();
           LOG.info(
               "【LocalVolatileCache.process】 - eventType:【NodeChildrenChanged】.parent path is :【{}】.Current child node is :【{}】.Ready to manage.",
@@ -592,7 +614,7 @@ public final class LocalVolatileCache implements Watcher {
   /**
    * check zk-client
    */
-  private void zkCheck(String methodDesc) {
+  private void zkCheck(String methodDesc) throws ZBJException {
     if (isNull(zk)) {
       LOG.error(
           "【{}】 execute failure ! ZooKeeper Connection is null !", methodDesc);
@@ -605,7 +627,7 @@ public final class LocalVolatileCache implements Watcher {
   /**
    * check LocalVolatileCacheProcessor can not be null
    */
-  private void cacheProcessorCheck(String methodDesc) {
+  private void cacheProcessorCheck(String methodDesc) throws ZBJException {
     if (isNull(cacheProcessor)) {
       if (Objects.isNull(cacheProcessor)) {
         throw new ZBJException(String.format("【%s】 -cacheProcessor can not be null !", methodDesc));
@@ -617,11 +639,29 @@ public final class LocalVolatileCache implements Watcher {
    * exception : session is expired .<br/>
    * notifycation all cache node expired
    */
-  private void processSessionExpired(){
+  private void processSessionExpired() {
+    localVolatileConfig.innerClusterSwitch = true;
     if( localVolatileConfig.getClusterSwitch() ){
       List<String> childCacheNode = getAllExistCacheNode();
       for (int i = 0; i < childCacheNode.size(); i++) {
-        broadcastCacheChange(childCacheNode.get(i));
+        try {
+          broadcastCacheChange(childCacheNode.get(i));
+        } catch (ZBJException e) {
+          LOG.error("【LocalVolatileCache.processSessionExpired】 ZBJException :",e);
+        }
+      }
+    }
+  }
+
+  /**
+   * exception : connection id dis-connect<br>
+   * notifycation all cache node expired
+   */
+  private void processDisConnect() throws KeeperException, InterruptedException, ZBJException {
+    List<String> allCacheNode = zk.getChildren(localVolatileConfig.zkCacheNodePath(),this);
+    if( localVolatileConfig.getClusterSwitch() ){
+      for (int i = 0; i < allCacheNode.size(); i++) {
+        broadcastCacheChange(allCacheNode.get(i));
       }
     }
   }

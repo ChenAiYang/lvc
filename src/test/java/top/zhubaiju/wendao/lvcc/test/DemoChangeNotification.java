@@ -1,5 +1,6 @@
 package top.zhubaiju.wendao.lvcc.test;
 
+import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
@@ -11,7 +12,11 @@ public class DemoChangeNotification {
 
   private static void notifycationChange() {
     LocalVolatileCache lvc = Demo.init();
-    lvc.broadcastCacheChange("1");
+    try {
+      lvc.broadcastCacheChange("1");
+    } catch (ZBJException e) {
+      e.printStackTrace();
+    }
     Demo.stay(lvc);
   }
 

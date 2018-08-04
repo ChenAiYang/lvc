@@ -1,6 +1,5 @@
 package top.zhubaiju.wendao.lvcc.test;
 
-import java.util.concurrent.locks.LockSupport;
 import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 

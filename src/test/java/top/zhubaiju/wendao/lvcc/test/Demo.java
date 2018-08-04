@@ -1,13 +1,16 @@
 package top.zhubaiju.wendao.lvcc.test;
 
 import com.alibaba.fastjson.JSON;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.locks.LockSupport;
+import org.apache.zookeeper.KeeperException;
+import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.CacheBuilder;
 import top.zhubaiju.lvcc.LocalVolatileCache;
+import top.zhubaiju.lvcc.LocalVolatileConfig;
 import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
-import top.zhubaiju.lvcc.support.LocalVolatileConfig;
 
 public class Demo {
 
@@ -17,7 +20,11 @@ public class Demo {
     LocalVolatileCacheProcessor cacheProcessor = Demo.initCacheProcessor();
     lvc.setLocalVolatileConfig(config);
     lvc.setCacheProcessor(cacheProcessor);
-    lvc.init();
+    try {
+      lvc.init();
+    } catch (ZBJException e) {
+      e.printStackTrace();
+    }
     return lvc;
   }
 
@@ -43,40 +50,50 @@ public class Demo {
 
     @Override
     public Cache processExpired(String expiredCacheID) {
-      Cache c = CacheBuilder.getInstant()
-          .build(expiredCacheID, "create-time", "desc", "data:test");
+      Cache c = null;
+      try {
+        c = CacheBuilder.getInstant()
+            .build(expiredCacheID, "create-time", "desc", "data:test");
+      } catch (ZBJException e) {
+        e.printStackTrace();
+      }
       return c;
     }
 
     @Override
     public Cache processNotExist(String notExistCacheID) {
-      Cache c = CacheBuilder.getInstant()
-          .build(notExistCacheID, "create-name", "desc", "data:test");
+      Cache c = null;
+      try {
+        c = CacheBuilder.getInstant()
+            .build(notExistCacheID, "create-name", "desc", "data:test");
+      } catch (ZBJException e) {
+        e.printStackTrace();
+      }
       return c;
-    }
-  }
-
-  static class Task implements Runnable {
-
-    LocalVolatileCache localVolatileCache;
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    public Task(LocalVolatileCache cache) {
-      this.localVolatileCache = cache;
     }
 
     @Override
-    public void run() {
+    public void lvccExceptionNotifycation(LocalVolatileCache lvcc) {
+      int i = 1 ;
+      while (true){
+        System.out.println("lvccExceptionNotifycation  。。 "+i+" time retry reInit.. ");
+        try {
+          lvcc.reInit();
+          System.out.println("reInit() success !");
+          break;
+        } catch (IOException e) {
+          e.printStackTrace();
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        } catch (KeeperException e) {
+          e.printStackTrace();
+        } catch (ZBJException e) {
+          e.printStackTrace();
+        } finally {
+          i++;
+        }
 
-      while (true) {
-
-        System.out.println(localVolatileCache.healthInfo());
-        Cache c = localVolatileCache.get("2");
-        System.out.println(JSON.toJSONString(c));
-        LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 60*3);
-        localVolatileCache.broadcastCacheChange(c.getId());
       }
-
     }
   }
 

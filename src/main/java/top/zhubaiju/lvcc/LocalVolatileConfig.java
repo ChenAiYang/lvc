@@ -1,4 +1,4 @@
-package top.zhubaiju.lvcc.support;
+package top.zhubaiju.lvcc;
 
 import java.nio.charset.Charset;
 import java.security.NoSuchAlgorithmException;
@@ -14,6 +14,7 @@ import org.apache.zookeeper.server.auth.DigestAuthenticationProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import top.zhubaiju.common.LVCCConstant;
+import top.zhubaiju.lvcc.support.ReConnectStrategy;
 
 /**
  * @author iyoung chen
@@ -73,6 +74,18 @@ public class LocalVolatileConfig {
    * </code> true
    */
   private Boolean clusterSwitch = false;
+
+  /**
+   * <code>clusterSwitch</code> inner value.LVCC will judge it to decide weather connect ZK.
+   */
+  Boolean innerClusterSwitch = clusterSwitch.booleanValue();
+
+  /**
+   * the strategy of LVCC reconnect to ZK when net-env exception( just when working in clusterMode-true)
+   */
+  private ReConnectStrategy reConnectStrategy;
+
+
 
   public String getZkServerURL() {
     return zkServerURL;
@@ -136,6 +149,7 @@ public class LocalVolatileConfig {
 
   public void setClusterSwitch(Boolean clusterSwitch) {
     this.clusterSwitch = clusterSwitch;
+    this.innerClusterSwitch = clusterSwitch;
   }
 
   public Boolean getLazyLoad() {
@@ -152,6 +166,22 @@ public class LocalVolatileConfig {
 
   public void setSensitiveAll(Boolean sensitiveAll) {
     this.sensitiveAll = sensitiveAll;
+  }
+
+  public ReConnectStrategy getReConnectStrategy() {
+    return reConnectStrategy;
+  }
+
+  public void setReConnectStrategy(ReConnectStrategy reConnectStrategy) {
+    this.reConnectStrategy = reConnectStrategy;
+  }
+
+  public LocalVolatileConfig(){
+    this.reConnectStrategy = new ReConnectStrategy();
+  }
+
+  public Boolean getInnerClusterSwitch() {
+    return innerClusterSwitch;
   }
 
   /**

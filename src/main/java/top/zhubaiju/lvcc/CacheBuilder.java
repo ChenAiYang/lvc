@@ -9,13 +9,13 @@ import top.zhubaiju.common.ZBJException;
 
 public class CacheBuilder {
 
-  public <T> Cache build(String cacheId, String cacheName, String cacheDesc, T data) {
+  public <T> Cache build(String cacheId, String cacheName, String cacheDesc, T data) throws ZBJException{
     Cache cache = new Cache<>(cacheId, cacheName, cacheDesc, data);
     check(cache);
     return cache;
   }
 
-  public  <T> Cache build(String cacheId, String cacheName, T data) {
+  public  <T> Cache build(String cacheId, String cacheName, T data) throws ZBJException{
     return build(cacheId, cacheName, "", data);
 
   }

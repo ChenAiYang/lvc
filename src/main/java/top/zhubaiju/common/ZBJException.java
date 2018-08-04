@@ -1,6 +1,6 @@
 package top.zhubaiju.common;
 
-public class ZBJException extends RuntimeException {
+public class ZBJException extends Exception {
 
   public ZBJException(){}
 
