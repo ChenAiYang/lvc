@@ -201,6 +201,7 @@ public class LocalVolatileConfig {
 
   /**
    * caculate cache path like : /[zkPath]/[namespace]-[moudle]
+   * @return  app cache root path, like /[zkPath]/[namespace]-[moudle]
    */
   public String zkCacheNodePath() {
     StringBuilder sbd = new StringBuilder();

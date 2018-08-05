@@ -35,6 +35,7 @@ public interface LocalVolatileCacheProcessor {
    *   1.send exception to application owner by Email or other way you like. <br>
    *   2.call <code>LocalVolatitleCache.reInit()</code> method by your strategy.
    * </p>
+   * @param lvcc current LocalVolatileCache instant
    */
   void lvccExceptionNotifycation(LocalVolatileCache lvcc);
 

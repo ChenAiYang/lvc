@@ -80,16 +80,24 @@ public final class LocalVolatileCache implements Watcher {
 
   /**
    * you may call this method when lvccExceptionNotifycation happend.
-   * @throws IOException re-init  failure
+   * @throws ZBJException  re-init  failure
    */
-  public void reInit() throws IOException, KeeperException, InterruptedException, ZBJException {
+  public void reInit() throws ZBJException {
     if (!localVolatileConfig.getClusterSwitch().booleanValue()) {
       LOG.info(
           "【LocalVolatileCache.reInit】 execute refuse ! clusterSwitch is false ");
       return;
     }
     //if zk re-create success,then listen
-    processDisConnect();
+    try {
+      processDisConnect();
+    } catch (KeeperException e) {
+      LOG.error("【LocalVolatileCache.reInit】 hanppend KeeperException:",e);
+      throw new ZBJException(e.getMessage());
+    } catch (InterruptedException e) {
+      LOG.error("【LocalVolatileCache.reInit】 hanppend InterruptedException:",e);
+      throw new ZBJException(e.getMessage());
+    }
     localVolatileConfig.innerClusterSwitch=true;
   }
 
@@ -207,6 +215,7 @@ public final class LocalVolatileCache implements Watcher {
    * notify all application instant cache changed.at the same time, this method will set watcher for current node
    *
    * @param localCacheId localCacheId
+   * @throws ZBJException bradcast failure
    */
   public void broadcastCacheChange(String localCacheId) throws ZBJException {
     if (Strings.isBlank(localCacheId)) {
@@ -259,7 +268,6 @@ public final class LocalVolatileCache implements Watcher {
             (jo.toJSONString()).getBytes(LVCCConstant.CHAR_SET),
             stat.getVersion());
         LOG.info("【LocalVolatileCache.modifyRemoteCache】 - modify remote success.");
-        //TODO 修改完毕之后，是否需要再次进行监听
       } else {
         LOG.error(
             "【LocalVolatileCache.modifyRemoteCache】 - cache node :【{}】 do not exists.",
@@ -355,8 +363,9 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * remove a cache from LVCC .<br/>
+   * remove a cache from LVCC .<br>
    * idempotent method
+   * @param localCache - a local cache
    */
   public void remove(Cache localCache) {
     if (Objects.isNull(localCache)) {
@@ -370,8 +379,9 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * remove a cache from LVCC-REMOTE .<br/>
+   * remove a cache from LVCC-REMOTE .<br>
    * idempotent method
+   * @param localCache  a local cache
    */
   public void removeRemote(Cache localCache) {
     try {
@@ -447,35 +457,6 @@ public final class LocalVolatileCache implements Watcher {
     }
     desc.put("cacheList",cacheList);
     return JSON.toJSONStringWithDateFormat(desc,LVCCConstant.DEFAULT_DATE_FORMATTER);
-  }
-
-
-  /**
-   * remedial measures for connect ZK failure when LocalVolatileCache loading
-   *
-   * @param zkURL if null,then use original value
-   * @param sessionTimeOut sessionTimeOut,then use original value
-   * @param retryTimes if null,then default 5
-   * @param retryTimesGapMillionSecond if null,then 1000
-   */
-  public void resetZooKeeperConnection(String zkURL, Integer sessionTimeOut, Integer retryTimes,
-      Long retryTimesGapMillionSecond) {
-    if (!localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
-      LOG.info(
-          "【LocalVolatileCache.resetZooKeeperConnection】 execute refuse ! clusterSwitch is false ");
-      return;
-    }
-    if (isNull(zkURL) || Objects.equals("", zkURL)) {
-      zkURL = localVolatileConfig.getZkServerURL();
-    }
-    if (isNull(sessionTimeOut)) {
-      sessionTimeOut = localVolatileConfig.getSessionTimeOut().intValue();
-    }
-    initZKConnection(zkURL, sessionTimeOut);
-    Integer leftRetryTimes = retryTimes;
-    while (isNull(zk) && leftRetryTimes.intValue() > 0) {
-      initZKConnection(zkURL, sessionTimeOut);
-    }
   }
 
 
