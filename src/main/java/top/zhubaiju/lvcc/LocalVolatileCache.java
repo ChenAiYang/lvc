@@ -223,8 +223,9 @@ public final class LocalVolatileCache implements Watcher {
           localCacheId);
       return;
     }
-    Cache newLocalCache = cacheProcessor.processExpired(localCacheId);
-    if (Objects.isNull(newLocalCache)) {
+    // use get() to bind/check-bind cache to lvcc
+    Cache existsCache = get(localCacheId);
+    if( Objects.isNull(existsCache) ){
       LOG.warn(
           "【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 can not find a new cache from the implement of LocalVolatileCacheProcessor.",
           localCacheId);
@@ -233,6 +234,7 @@ public final class LocalVolatileCache implements Watcher {
 
     if (!localVolatileConfig.getInnerClusterSwitch().booleanValue()) {
       if (cache.contains(localCacheId)) {
+        Cache newLocalCache = cacheProcessor.processExpired(localCacheId);
         cache.put(newLocalCache.getId(), newLocalCache);
       } else {
         LOG.warn(
@@ -241,10 +243,9 @@ public final class LocalVolatileCache implements Watcher {
         return;
       }
     } else {
-      modifyRemoteCache(newLocalCache);
+      modifyRemoteCache(existsCache);
     }
-    LOG.info("【LocalVolatileCache.broadcastCacheChange】 success.new cache is :{}",
-        JSON.toJSONStringWithDateFormat(newLocalCache, LVCCConstant.DEFAULT_DATE_FORMATTER));
+    LOG.info("【LocalVolatileCache.broadcastCacheChange】 broadcast cache : 【{}】 success",localCacheId);
   }
 
   /**

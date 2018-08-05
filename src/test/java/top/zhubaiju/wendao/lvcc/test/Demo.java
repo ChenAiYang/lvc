@@ -81,12 +81,6 @@ public class Demo {
           lvcc.reInit();
           System.out.println("reInit() success !");
           break;
-        } catch (IOException e) {
-          e.printStackTrace();
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        } catch (KeeperException e) {
-          e.printStackTrace();
         } catch (ZBJException e) {
           e.printStackTrace();
         } finally {
