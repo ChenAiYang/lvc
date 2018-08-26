@@ -104,6 +104,21 @@
 
 
   </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.5.1</version>
+        <configuration>
+          <source>${java_source_version}</source>
+          <target>${java_target_version}</target>
+          <testSource>${java_source_version}</testSource>
+          <testTarget>${java_target_version}</testTarget>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
   <!-- -->
   <profiles>
     <profile>
