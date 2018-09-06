@@ -37,7 +37,7 @@ public class Demo {
     config.setModule("test");
     config.setNamespace("lvcc");
     config.setSessionTimeOut(5000L);
-    config.setZkPath("/");
+    config.setZkPath("/STORF");
     config.setZkServerURL("127.0.0.1:2181");
     return config;
   }

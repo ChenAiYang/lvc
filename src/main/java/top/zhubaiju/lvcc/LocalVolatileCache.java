@@ -132,20 +132,32 @@ public final class LocalVolatileCache implements Watcher {
     String currentCacheNodeName =
         localVolatileConfig.getNamespace() + "-" + localVolatileConfig.getModule();
     try {
-      Stat stat = zk
-          .exists(currentCacheNodePath,
-              this);
-      if (Objects.nonNull(stat)) {
-        LOG.info(
-            "【LocalVolatileCache.initZKCacheNodePath】 :【{}】 Already Exist.", currentCacheNodePath);
-      } else {
-        zk.create(currentCacheNodePath, currentCacheNodeName.getBytes(LVCCConstant.CHAR_SET),
-            aclList,
-            CreateMode.PERSISTENT,
-            new CreateNodeCallBack(), "Create Node Success");
-        //create node with sync mode.wait for 2 second.
-        LockSupport.parkUntil(System.currentTimeMillis() + 1000 * 2);
-        LOG.info("【initZKConnection】- zkCacheNode :【{}】 Create Success.", currentCacheNodePath);
+      String[] nodeList = currentCacheNodePath.split("[/]");
+      StringBuilder path = new StringBuilder();
+      path.append("/");
+      for( String node:nodeList ){
+        if( Objects.isNull(node) || Objects.equals("",node) ){
+          continue;
+        }
+        if( !path.toString().endsWith("/") ){
+          path.append(LVCCConstant.DEFAULT_BASE_ZK_PATHE);
+        }
+        path.append(node);
+        Stat stat = zk
+            .exists(path.toString(),
+                this);
+        if (Objects.nonNull(stat)) {
+          LOG.info(
+              "【LocalVolatileCache.initZKCacheNodePath】 :【{}】 Already Exist.", node);
+        } else {
+          zk.create(path.toString(), node.getBytes(LVCCConstant.CHAR_SET),
+              aclList,
+              CreateMode.PERSISTENT,
+              new CreateNodeCallBack(), "Create Node Success");
+          //create node with sync mode.wait for 1 second.
+          LockSupport.parkUntil(System.currentTimeMillis() + 1000 );
+          LOG.info("【initZKConnection】- zkCacheNode :【{}】 Create Success.", currentCacheNodePath);
+        }
       }
       // set children listen after init cachaeNode
       zk.getChildren(currentCacheNodePath, this);
