@@ -194,5 +194,5 @@
 
   </profiles>
 
-
+  <!--mvn clean -Dmaven.test.skip=true deploy -P release-->
 </project>
