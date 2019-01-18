@@ -1,6 +1,5 @@
 package top.zhubaiju.wendao.lvcc.test;
 
-import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
 public class DemoRemove {

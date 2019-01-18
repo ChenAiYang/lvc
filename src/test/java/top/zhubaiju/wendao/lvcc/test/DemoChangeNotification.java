@@ -1,7 +1,6 @@
 package top.zhubaiju.wendao.lvcc.test;
 
 import top.zhubaiju.common.ZBJException;
-import top.zhubaiju.lvcc.Cache;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
 public class DemoChangeNotification {

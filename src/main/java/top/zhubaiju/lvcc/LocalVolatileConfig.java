@@ -189,7 +189,7 @@ public class LocalVolatileConfig {
    *
    * @return true or false
    */
-  public boolean needAuthSec() {
+  boolean needAuthSec() {
     if (Objects.isNull(authP) || Objects.equals("", authP)) {
       return false;
     }
