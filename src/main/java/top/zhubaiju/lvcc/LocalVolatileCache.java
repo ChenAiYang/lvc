@@ -8,7 +8,6 @@ import com.alibaba.fastjson.JSONObject;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -169,14 +168,14 @@ public final class LocalVolatileCache implements Watcher {
           e);
     }
     if (localVolatileConfig.getInnerClusterSwitch() && !localVolatileConfig.getLazyLoad()) {
-      loadAllExistCache();
+      loadAllCommitedCache();
     }
   }
 
-  private void loadAllExistCache() throws ZBJException {
+  private void loadAllCommitedCache() throws ZBJException {
     List<String> allExistCacheNode = listCacheKey();
     for (String cacheNode : allExistCacheNode) {
-      cacheProcessor.onChanged(cacheNode);
+      commit(cacheNode);
     }
   }
 
@@ -225,7 +224,7 @@ public final class LocalVolatileCache implements Watcher {
       // if your app is not in cluster mode, LVCC will process change too
       if (cache.contains(cacheKey)) {
         cacheProcessor.onChanged(cacheKey);
-        cache.put(cacheKey, null);
+        cache.put(cacheKey, "");
       } else {
         LOG.warn(
             "【LocalVolatileCache.broadcastCacheChange】- cacheId:【{}】 do not exists.You may call 【LocalVolatileCache.get()】 first.",
@@ -290,7 +289,7 @@ public final class LocalVolatileCache implements Watcher {
    *
    * @param cacheKey - a local cache key.cacheKey should not be null , empty/trim-empty string
    */
-  private void commit(String cacheKey) {
+  public void commit(String cacheKey) {
     if (Strings.isBlank(cacheKey)) {
       return;
     }
@@ -300,7 +299,7 @@ public final class LocalVolatileCache implements Watcher {
     if (cache.contains(cacheKey)) {
       return;
     }
-    cache.put(cacheKey, null);
+    cache.put(cacheKey, "");
   }
 
   /**
@@ -427,7 +426,12 @@ public final class LocalVolatileCache implements Watcher {
            *  - notify application
            */
           localVolatileConfig.innerClusterSwitch = false;
-          cacheProcessor.lvccExceptionNotifycation(this);
+          try {
+            cacheProcessor.lvccExceptionNotifycation(this);
+          } catch (ZBJException e) {
+            e.printStackTrace();
+            LOG.error("【LocalVolatileCache.process】execute hanpped ZBJException :", e);
+          }
           break;
         default:
           break;

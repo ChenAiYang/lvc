@@ -43,13 +43,18 @@ public class Demo {
     return new LocalVolatileCacheProcessorA();
   }
 
-  static class LocalVolatileCacheProcessorA implements LocalVolatileCacheProcessor {
+  static class LocalVolatileCacheProcessorA extends LocalVolatileCacheProcessor {
 
     @Override
     public void onChanged(String expiredCacheID) {
       JSONObject info = new JSONObject();
       info.put("cacheKey",expiredCacheID);
       info.put("lastOperateTime",new Date());
+    }
+
+    @Override
+    public void onNotExists(String cacheKey) {
+      Demo.init().commit(cacheKey);
     }
 
     @Override
@@ -85,7 +90,7 @@ public class Demo {
 
   public static void stay(LocalVolatileCache lvc){
     while (true) {
-      System.out.println("内存健康情况：" + JSON.toJSONString(lvc.listCacheKey()));
+      System.out.println("LVCC 所管理的所有 cacheKey：" + JSON.toJSONString(lvc.listCacheKey()));
       LockSupport.parkUntil(System.currentTimeMillis() + 1000*10);
     }
   }

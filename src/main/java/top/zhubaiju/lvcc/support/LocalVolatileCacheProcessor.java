@@ -1,43 +1,58 @@
 package top.zhubaiju.lvcc.support;
 
+import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
 /**
- *
- * implments this interface to make sure LocalVolatileCache can get new config when listen config change
+ * extends this class to make sure LocalVolatileCache can response events
+ * change
  *
  * @author iyoung chen create at 2017/4/14 15:13
  */
-public interface LocalVolatileCacheProcessor {
+public abstract class LocalVolatileCacheProcessor {
 
   /**
-   * when LocalVolatileCache listen config expired ,this method would be call and get a new config
+   * when LVCC listen cacheKey changed ,this method would be called
    *
    * @param cacheKey cacheKey
-   *
    */
-  void onChanged(String cacheKey);
+
+  public abstract void onChanged(String cacheKey);
 
   /**
-   * when LVCC have no special configID,this method would be call
-   * @param cacheKey notExistCacheID
+   * when LVCC listen cacheKey delete ,this method would be called
    *
+   * @param cacheKey cacheKey
    */
-  void onDeleted(String cacheKey);
+  public abstract void onDeleted(String cacheKey);
 
-  void onAdd(String cacheKey);
+  /**
+   * when LVCC listen a new cacheKey,thie method would be called
+   * @param cacheKey
+   */
+  public abstract void onAdd(String cacheKey);
+
+  /**
+   * when LVCC
+   * @param cacheKey
+   */
+  public abstract void onNotExists(String cacheKey);
 
 
   /**
    * when clusterMode is false,you can ignore(do nothing in emplments ) this method.
    * <p>
-   * while LVCC-CLIENT hanppend excption eg : lvcc-client(zkClient) net exception ,this method
-   * will be called. You shoud do something in this method,like :<br>
-   *   1.send exception to application owner by Email or other way you like. <br>
-   *   2.call <code>LocalVolatitleCache.reInit()</code> method by your strategy.
+   * while LVCC-CLIENT hanppend excption eg : lvcc-client(zkClient) net exception ,this method will
+   * be called. You shoud do something in this method,like :<br> 1.send exception to application
+   * owner by Email or other way you like. <br> 2.call <code>LocalVolatitleCache.reInit()</code>
+   * method by your strategy.
    * </p>
+   *
    * @param lvcc current LocalVolatileCache instant
+   * @throws ZBJException
    */
-  void lvccExceptionNotifycation(LocalVolatileCache lvcc);
+  public void lvccExceptionNotifycation(LocalVolatileCache lvcc) throws ZBJException {
+    lvcc.reInit();
+  }
 
 }

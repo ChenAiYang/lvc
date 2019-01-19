@@ -10,9 +10,7 @@ public class DemoRemove {
 
   private static void remove() {
     LocalVolatileCache lvc = Demo.init();
-    Cache cache = lvc.get("1");
-//    LockSupport.parkUntil(System.currentTimeMillis()+3000);
-    lvc.remove(cache);
+
     Demo.stay(lvc);
   }
 
