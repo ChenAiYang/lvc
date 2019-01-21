@@ -47,21 +47,28 @@ public class Demo {
 
     @Override
     public void onChanged(String expiredCacheID) {
+      System.out.println(" cache key changed , will reload ...");
       JSONObject info = new JSONObject();
       info.put("cacheKey",expiredCacheID);
       info.put("lastOperateTime",new Date());
+      System.out.println(" cache key changed , reload success...");
     }
 
     @Override
-    public void onNotExists(String cacheKey) {
-      Demo.init().commit(cacheKey);
+    public void onNotExists( LocalVolatileCache lvcc, String cacheKey) {
+      System.out.println(" cache key not in current Application , will load ...");
+      System.out.println(" loading ...");
+      lvcc.commit(cacheKey);
+      System.out.println(" load success...");
     }
 
     @Override
     public void onAdd(String notExistCacheID) {
+      System.out.println(" cache key commited,but not in current application ,will init ...");
       JSONObject info = new JSONObject();
       info.put("cacheKey",notExistCacheID);
       info.put("lastOperateTime",new Date());
+      System.out.println(" cache key commited, init success...");
     }
 
     @Override

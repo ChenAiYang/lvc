@@ -1,5 +1,6 @@
 package top.zhubaiju.wendao.lvcc.test;
 
+import java.util.concurrent.locks.LockSupport;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
 public class DemoCommit {
@@ -9,8 +10,14 @@ public class DemoCommit {
   }
 
   private static void commit() {
+
     LocalVolatileCache lvc = Demo.init();
-    lvc.commit("cacheKey1");
+    int i = 1 ;
+    while (i< 50){
+      lvc.commit("cacheKey"+i);
+      i++;
+      LockSupport.parkUntil(System.currentTimeMillis()+1000*5);
+    }
     Demo.stay(lvc);
   }
 

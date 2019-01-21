@@ -2,13 +2,13 @@ package top.zhubaiju.wendao.lvcc.test;
 
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
-public class DemoGet {
+public class DemoJustListen {
 
   public static void main(String[] args) {
-    get();
+    listen();
   }
 
-  private static void get() {
+  private static void listen() {
     LocalVolatileCache lvc = Demo.init();
     Demo.stay(lvc);
   }

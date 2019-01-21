@@ -33,10 +33,11 @@ public abstract class LocalVolatileCacheProcessor {
   public abstract void onAdd(String cacheKey);
 
   /**
-   * when LVCC
+   * when app startup ,LVCC client decated a cache that commited but not in current app instant
+   * @param lvcc
    * @param cacheKey
    */
-  public abstract void onNotExists(String cacheKey);
+  public abstract void onNotExists(LocalVolatileCache lvcc, String cacheKey);
 
 
   /**

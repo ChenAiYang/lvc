@@ -174,8 +174,8 @@ public final class LocalVolatileCache implements Watcher {
 
   private void loadAllCommitedCache() throws ZBJException {
     List<String> allExistCacheNode = listCacheKey();
-    for (String cacheNode : allExistCacheNode) {
-      commit(cacheNode);
+    for (String cacheKey : allExistCacheNode) {
+      cacheProcessor.onNotExists(this,cacheKey);
     }
   }
 
@@ -216,7 +216,7 @@ public final class LocalVolatileCache implements Watcher {
       return;
     }
     // use get() to bind/check-bind cache to lvcc
-    if( !cache.contains(cacheKey) ){
+    if( !cache.containsKey(cacheKey) ){
       return;
     }
 
@@ -517,7 +517,10 @@ public final class LocalVolatileCache implements Watcher {
               "【LocalVolatileCache.process】 - eventType:【NodeChildrenChanged】.parent path is :【{}】.Current child node is :【{}】.Ready to manage.",
               path, JSON.toJSON(childNode));
           for (String el : childNode) {
-            commit(el);
+            if( !cache.containsKey(el) ){
+              // just listen new node create
+              cacheProcessor.onAdd(el);
+            }
           }
         } else {
           LOG.info(

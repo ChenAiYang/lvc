@@ -12,7 +12,12 @@ public class DemoBroadcastChange {
   private static void broadcastChange() {
     LocalVolatileCache lvc = Demo.init();
     try {
-      lvc.broadcastCacheChange("cacheKey1");
+      int i = 1;
+      while( i <= 15 ){
+        System.out.println("ready broad");
+        lvc.broadcastCacheChange("cacheKey"+i);
+        i++;
+      }
     } catch (ZBJException e) {
       e.printStackTrace();
     }
