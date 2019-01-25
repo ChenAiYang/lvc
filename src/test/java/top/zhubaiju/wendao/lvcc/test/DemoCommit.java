@@ -13,7 +13,7 @@ public class DemoCommit {
 
     LocalVolatileCache lvc = Demo.init();
     int i = 1 ;
-    while (i< 5){
+    while (i< 50){
       lvc.commit("cacheKey"+i);
       i++;
       LockSupport.parkUntil(System.currentTimeMillis()+1000*5);

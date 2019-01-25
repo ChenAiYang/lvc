@@ -9,7 +9,7 @@ import top.zhubaiju.lvcc.LocalVolatileCache;
  *
  * @author iyoung chen create at 2017/4/14 15:13
  */
-public abstract class LocalVolatileCacheProcessor {
+public abstract class LocalVolatileCacheListener {
 
   /**
    * when LVCC listen cacheKey changed ,this method would be called
@@ -24,7 +24,7 @@ public abstract class LocalVolatileCacheProcessor {
    *
    * @param cacheKey cacheKey
    */
-  public abstract void onDeleted(String cacheKey);
+  public abstract void onDeleted(LocalVolatileCache lvcc,String cacheKey);
 
   /**
    * when LVCC listen a new cacheKey,thie method would be called
@@ -34,11 +34,11 @@ public abstract class LocalVolatileCacheProcessor {
   public abstract void onAdd(LocalVolatileCache lvcc,String cacheKey);
 
   /**
-   * when app startup ,LVCC client decated a cache that commited but not in current app instant
+   * when application startup ,LVCC client decated a cache that already commited but not in current app instant
    * @param lvcc
    * @param cacheKey
    */
-  public abstract void onNotExists(LocalVolatileCache lvcc, String cacheKey);
+  public abstract void onLose(LocalVolatileCache lvcc, String cacheKey);
 
 
   /**

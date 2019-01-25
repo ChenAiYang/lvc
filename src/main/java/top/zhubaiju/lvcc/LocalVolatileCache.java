@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import top.zhubaiju.common.LVCCConstant;
 import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.support.CreateNodeCallBack;
-import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
+import top.zhubaiju.lvcc.support.LocalVolatileCacheListener;
 
 /**
  * @author iyoung chen create at 2017/4/14 15:13
@@ -42,7 +42,7 @@ public final class LocalVolatileCache implements Watcher {
 
   private ConcurrentHashMap<String, Object> cache = new ConcurrentHashMap<>();
 
-  private LocalVolatileCacheProcessor cacheProcessor;
+  private LocalVolatileCacheListener cacheProcessor;
 
   private LocalVolatileConfig localVolatileConfig;
 
@@ -56,11 +56,11 @@ public final class LocalVolatileCache implements Watcher {
     this.localVolatileConfig = localVolatileConfig;
   }
 
-  public LocalVolatileCacheProcessor getCacheProcessor() {
+  public LocalVolatileCacheListener getCacheProcessor() {
     return cacheProcessor;
   }
 
-  public void setCacheProcessor(LocalVolatileCacheProcessor cacheProcessor) {
+  public void setCacheProcessor(LocalVolatileCacheListener cacheProcessor) {
     this.cacheProcessor = cacheProcessor;
   }
 
@@ -175,7 +175,7 @@ public final class LocalVolatileCache implements Watcher {
   private void loadAllCommitedCache() throws ZBJException {
     List<String> allExistCacheNode = listCacheKey();
     for (String cacheKey : allExistCacheNode) {
-      cacheProcessor.onNotExists(this,cacheKey);
+      cacheProcessor.onLose(this,cacheKey);
     }
   }
 
@@ -508,7 +508,7 @@ public final class LocalVolatileCache implements Watcher {
             "【LocalVolatileCache.process】 - eventType:【NodeDeleted】.Deleted node path is :【{}】",
             path);
         if (Objects.nonNull(changedCacheId) && !Objects.equals("", changedCacheId)) {
-          cacheProcessor.onDeleted(changedCacheId);
+          cacheProcessor.onDeleted(this,changedCacheId);
         }
         break;
       case NodeChildrenChanged:
@@ -549,7 +549,7 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * check LocalVolatileCacheProcessor can not be null
+   * check LocalVolatileCacheListener can not be null
    */
   private void cacheProcessorCheck(String methodDesc) throws ZBJException {
     if (isNull(cacheProcessor)) {

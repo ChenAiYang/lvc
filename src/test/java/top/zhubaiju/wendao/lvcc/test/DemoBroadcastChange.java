@@ -1,5 +1,6 @@
 package top.zhubaiju.wendao.lvcc.test;
 
+import java.util.concurrent.locks.LockSupport;
 import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 
@@ -12,11 +13,10 @@ public class DemoBroadcastChange {
   private static void broadcastChange() {
     LocalVolatileCache lvc = Demo.init();
     try {
-      int i = 1;
-      while( i <= 15 ){
-        System.out.println("ready broad");
-        lvc.broadcastCacheChange("cacheKey"+i);
-        i++;
+      while( true ){
+        System.out.println("准备刷新 cacheKey1");
+        lvc.broadcastCacheChange("cacheKey1");
+        LockSupport.parkUntil(System.currentTimeMillis()+1000*5);
       }
     } catch (ZBJException e) {
       e.printStackTrace();

@@ -7,14 +7,14 @@ import java.util.concurrent.locks.LockSupport;
 import top.zhubaiju.common.ZBJException;
 import top.zhubaiju.lvcc.LocalVolatileCache;
 import top.zhubaiju.lvcc.LocalVolatileConfig;
-import top.zhubaiju.lvcc.support.LocalVolatileCacheProcessor;
+import top.zhubaiju.lvcc.support.LocalVolatileCacheListener;
 
 public class Demo {
 
   static LocalVolatileCache init(){
     LocalVolatileCache lvc = new LocalVolatileCache();
     LocalVolatileConfig config = Demo.initConfig();
-    LocalVolatileCacheProcessor cacheProcessor = Demo.initCacheProcessor();
+    LocalVolatileCacheListener cacheProcessor = Demo.initCacheProcessor();
     lvc.setLocalVolatileConfig(config);
     lvc.setCacheProcessor(cacheProcessor);
     try {
@@ -39,42 +39,54 @@ public class Demo {
     return config;
   }
 
-  static LocalVolatileCacheProcessor initCacheProcessor() {
+  static LocalVolatileCacheListener initCacheProcessor() {
     return new LocalVolatileCacheProcessorA();
   }
 
-  static class LocalVolatileCacheProcessorA extends LocalVolatileCacheProcessor {
+  static class LocalVolatileCacheProcessorA extends LocalVolatileCacheListener {
 
     @Override
     public void onChanged(String expiredCacheID) {
-      System.out.println(" cache key changed , will reload ...");
+      System.out.println("Listener-onChange----------Start");
+      System.out.println(" load new cache ....");
       JSONObject info = new JSONObject();
       info.put("cacheKey",expiredCacheID);
       info.put("lastOperateTime",new Date());
-      System.out.println(" cache key changed , reload success...");
+      System.out.println(" load success.new cache is : "+ JSON.toJSONStringWithDateFormat(info,"yyyy-MM-dd HH:mm:ss"));
+      System.out.println("Listener-onChange----------End");
     }
 
     @Override
-    public void onNotExists( LocalVolatileCache lvcc, String cacheKey) {
-      System.out.println(" cache key 【"+cacheKey+"】not in current Application , will load ...");
-      System.out.println(" loading ...");
-      lvcc.commit(cacheKey);
-      System.out.println(" load cache key 【"+cacheKey+"】 success!");
-    }
-
-    @Override
-    public void onAdd(LocalVolatileCache lvcc,String notExistCacheID) {
-      System.out.println(" cache key【"+notExistCacheID+"】 commited,but not in current application ,will init ...");
+    public void onLose( LocalVolatileCache lvcc, String cacheKey) {
+      System.out.println("Listener-onLose----------Start");
+      System.out.println(" init cache ....");
       JSONObject info = new JSONObject();
-      info.put("cacheKey",notExistCacheID);
+      info.put("cacheKey",cacheKey);
       info.put("lastOperateTime",new Date());
-      lvcc.commit(notExistCacheID);
-      System.out.println(" cache key 【"+notExistCacheID+"】 commited, init success!");
+      lvcc.commit(cacheKey);
+      System.out.println(" init success. cache is : "+ JSON.toJSONStringWithDateFormat(info,"yyyy-MM-dd HH:mm:ss"));
+      System.out.println("Listener-onLose----------End");
     }
 
     @Override
-    public void onDeleted(String cacheKey) {
-      System.out.println("准备删除："+cacheKey);
+    public void onAdd(LocalVolatileCache lvcc,String cacheKey) {
+      System.out.println("Listener-onAdd----------Start");
+      System.out.println(" create new  cache ....");
+      JSONObject info = new JSONObject();
+      info.put("cacheKey",cacheKey);
+      info.put("lastOperateTime",new Date());
+      lvcc.commit(cacheKey);
+      System.out.println(" create new cache success. cache is : "+ JSON.toJSONStringWithDateFormat(info,"yyyy-MM-dd HH:mm:ss"));
+      System.out.println("Listener-onAdd----------End");
+    }
+
+    @Override
+    public void onDeleted(LocalVolatileCache lvcc, String cacheKey) {
+      System.out.println("Listener-onDelete----------Start");
+      System.out.println(" delete cache ....");
+      lvcc.remove(cacheKey);
+      System.out.println(" delete cache success.");
+      System.out.println("Listener-onDelete----------End");
     }
 
     @Override
