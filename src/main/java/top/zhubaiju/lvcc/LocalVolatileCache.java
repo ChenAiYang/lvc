@@ -338,7 +338,9 @@ public final class LocalVolatileCache implements Watcher {
         zk.create(currentCacheNodePath,
             cacheKeyInfoStr.getBytes(Charset.forName(LVCCConstant.CHAR_SET)),
             aclList, CreateMode.PERSISTENT);
-        //TODO should add Watcher after create new node ?
+        /**
+         * after create a new node , do not need set a watcher for DataChildrenChange will set watcher
+         */
         LOG.info(
             "【LocalVolatileCache.commitRemote】 - commit remote success. CacheKey Node Instant info :【{}】 .",
             cacheKeyInfoStr);
@@ -482,27 +484,6 @@ public final class LocalVolatileCache implements Watcher {
         }
 
         break;
-      case NodeCreated:
-        //TODO  create event really need listen ?????
-        /*try {
-          String createdInfo = new String(this.zk.getData(path, this, null),
-              Charset.forName(LVCCConstant.CHAR_SET));
-          LOG.info(
-              "【LocalVolatileCache.process】 - eventType:【NodeCreated】.Created node path is:【{}】,created info is :【{}】 ",
-              path, createdInfo);
-          if (Objects.nonNull(changedCacheId) && !Objects.equals("", changedCacheId)) {
-            cacheProcessor.onAdd(changedCacheId);
-          }
-        } catch (KeeperException e) {
-          LOG.error(
-              "【LocalVolatileCache.process】-NodeCreated,when get created info from zk happend KeeperException :",
-              e);
-        } catch (InterruptedException e) {
-          LOG.error(
-              "【LocalVolatileCache.process】-NodeCreated,when get created info from zk happend InterruptedException :",
-              e);
-        }*/
-        break;
       case NodeDeleted:
         LOG.info(
             "【LocalVolatileCache.process】 - eventType:【NodeDeleted】.Deleted node path is :【{}】",
@@ -518,6 +499,18 @@ public final class LocalVolatileCache implements Watcher {
               "【LocalVolatileCache.process】 - eventType:【NodeChildrenChanged】.parent path is :【{}】.Current child node is :【{}】.Ready to manage.",
               path, JSON.toJSON(childNode));
           for (String el : childNode) {
+            try {
+              zk.exists(path+"/"+el,this);
+            } catch (KeeperException e) {
+              e.printStackTrace();
+              LOG.error(
+                  "【LocalVolatileCache.process】-NodeChildrenChanged,when set watcher by exists happend KeeperException :",
+                  e);
+            } catch (InterruptedException e) {
+              LOG.error(
+                  "【LocalVolatileCache.process】-NodeChildrenChanged,when set watcher by exists happend InterruptedException :",
+                  e);
+            }
             if( !cache.containsKey(el) ){
               // just listen new node create
               cacheProcessor.onAdd(this,el);
