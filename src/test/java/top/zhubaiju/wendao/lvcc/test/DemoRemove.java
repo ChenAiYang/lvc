@@ -15,7 +15,7 @@ public class DemoRemove {
     while (i< 50){
       lvc.remove("cacheKey"+i);
       i++;
-      LockSupport.parkUntil(System.currentTimeMillis()+1000*5);
+//      LockSupport.parkUntil(System.currentTimeMillis()+1000*5);
     }
     Demo.stay(lvc);
   }

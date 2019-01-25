@@ -483,7 +483,8 @@ public final class LocalVolatileCache implements Watcher {
 
         break;
       case NodeCreated:
-        try {
+        //TODO  create event really need listen ?????
+        /*try {
           String createdInfo = new String(this.zk.getData(path, this, null),
               Charset.forName(LVCCConstant.CHAR_SET));
           LOG.info(
@@ -500,7 +501,7 @@ public final class LocalVolatileCache implements Watcher {
           LOG.error(
               "【LocalVolatileCache.process】-NodeCreated,when get created info from zk happend InterruptedException :",
               e);
-        }
+        }*/
         break;
       case NodeDeleted:
         LOG.info(
@@ -519,7 +520,7 @@ public final class LocalVolatileCache implements Watcher {
           for (String el : childNode) {
             if( !cache.containsKey(el) ){
               // just listen new node create
-              cacheProcessor.onAdd(el);
+              cacheProcessor.onAdd(this,el);
             }
           }
         } else {

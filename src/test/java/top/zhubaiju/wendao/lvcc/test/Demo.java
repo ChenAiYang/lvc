@@ -56,19 +56,20 @@ public class Demo {
 
     @Override
     public void onNotExists( LocalVolatileCache lvcc, String cacheKey) {
-      System.out.println(" cache key not in current Application , will load ...");
+      System.out.println(" cache key 【"+cacheKey+"】not in current Application , will load ...");
       System.out.println(" loading ...");
       lvcc.commit(cacheKey);
-      System.out.println(" load success...");
+      System.out.println(" load cache key 【"+cacheKey+"】 success!");
     }
 
     @Override
-    public void onAdd(String notExistCacheID) {
-      System.out.println(" cache key commited,but not in current application ,will init ...");
+    public void onAdd(LocalVolatileCache lvcc,String notExistCacheID) {
+      System.out.println(" cache key【"+notExistCacheID+"】 commited,but not in current application ,will init ...");
       JSONObject info = new JSONObject();
       info.put("cacheKey",notExistCacheID);
       info.put("lastOperateTime",new Date());
-      System.out.println(" cache key commited, init success...");
+      lvcc.commit(notExistCacheID);
+      System.out.println(" cache key 【"+notExistCacheID+"】 commited, init success!");
     }
 
     @Override

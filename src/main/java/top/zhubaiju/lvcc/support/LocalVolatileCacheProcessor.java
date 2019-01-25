@@ -28,9 +28,10 @@ public abstract class LocalVolatileCacheProcessor {
 
   /**
    * when LVCC listen a new cacheKey,thie method would be called
+   * @param lvcc
    * @param cacheKey
    */
-  public abstract void onAdd(String cacheKey);
+  public abstract void onAdd(LocalVolatileCache lvcc,String cacheKey);
 
   /**
    * when app startup ,LVCC client decated a cache that commited but not in current app instant
