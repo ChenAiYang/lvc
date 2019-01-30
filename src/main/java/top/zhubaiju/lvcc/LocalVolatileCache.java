@@ -181,6 +181,7 @@ public final class LocalVolatileCache implements Watcher {
 
   /**
    * get all exists cache node ,at the same time, listen child add/delete
+   * @return list all cacheKey that LVCC has managed
    */
   public List<String> listCacheKey() {
     try {
@@ -202,7 +203,7 @@ public final class LocalVolatileCache implements Watcher {
 
   /**
    * notify all application instant cache changed.at the same time, this method will set watcher for
-   * current node <br/>
+   * current node <br>
    *
    * if cacheKey not exists, do nothing 
    *
@@ -285,7 +286,7 @@ public final class LocalVolatileCache implements Watcher {
   }
 
   /**
-   * commit a cache key to LVCC manager it .<br/> idempotent method
+   * commit a cache key to LVCC manager it .<br> idempotent method
    *
    * @param cacheKey - a local cache key.cacheKey should not be null , empty/trim-empty string
    */

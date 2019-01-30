@@ -22,6 +22,7 @@ public abstract class LocalVolatileCacheListener {
   /**
    * when LVCC listen cacheKey delete ,this method would be called
    *
+   * @param lvcc
    * @param cacheKey cacheKey
    */
   public abstract void onDeleted(LocalVolatileCache lvcc,String cacheKey);
